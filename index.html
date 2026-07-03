@@ -243,185 +243,71 @@
     transform:scale(0.92);
   }
 
-  /* ================= 對照模式 ================= */
+  /* ================= v4.1：個人頁分頁（互動九宮格／原始手寫圖） ================= */
 
-  .compare-toggle-btn{
-    display:inline-flex;
-    align-items:center;
+  .page-tabs{
+    display:flex;
     gap:6px;
-    padding:7px 15px;
-    border-radius:999px;
-    border:1.5px solid var(--red);
-    background:var(--white);
-    color:var(--red);
-    font-size:12.5px;
-    font-weight:700;
+    margin:22px 0 18px;
+    border-bottom:1.5px solid var(--border-hair);
+  }
+
+  .page-tab-btn{
+    appearance:none;
+    border:none;
+    background:none;
     font-family:inherit;
+    font-size:15px;
+    font-weight:700;
+    color:var(--ink-soft);
+    padding:10px 4px;
+    margin-bottom:-1.5px;
+    border-bottom:2.5px solid transparent;
     cursor:pointer;
-    transition:background 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-out);
+    transition:color 140ms var(--ease-out), border-color 140ms var(--ease-out);
   }
 
-  .compare-toggle-btn:hover{
-    background:var(--red);
-    color:var(--white);
+  .page-tab-btn + .page-tab-btn{
+    margin-left:18px;
   }
 
-  .compare-toggle-btn:active{
-    transform:scale(0.96);
+  .page-tab-btn:hover{
+    color:var(--red);
   }
 
-  .compare-toggle-btn.active{
-    background:var(--red);
-    color:var(--white);
+  .page-tab-btn.active{
+    color:var(--red);
+    border-bottom-color:var(--red);
   }
 
-  #compare-layout{
+  .page-tab-panel{
+    display:none;
+  }
+
+  .page-tab-panel.active{
     display:block;
   }
 
-  /* 對照模式關閉時，photo-pane / grid-pane 只是普通垂直排列的容器，不額外加樣式 */
-
-  body.compare-mode #compare-layout{
-    display:flex;
-    flex-direction:column;
-    gap:0;
+  /* 手寫原圖 tab：無互動九宮格時的置中版面，沿用既有 .photo-frame / .photo-hint */
+  .original-photo-panel .photo-hint{
+    margin-top:12px;
   }
 
-  .compare-photo-pane{
-    position:relative;
-  }
-
-  .compare-photo-viewport{
-    position:relative;
-    overflow:hidden;
+  .original-photo-placeholder{
     background:var(--gray-bg);
     border-radius:14px;
-    touch-action:none;
-    user-select:none;
-  }
-
-  .compare-photo-viewport img{
-    display:block;
-    width:100%;
-    height:auto;
-    transform-origin:0 0;
-    will-change:transform;
-    pointer-events:none;
-  }
-
-  .compare-zoom-hint{
-    position:absolute;
-    bottom:10px;
-    left:50%;
-    transform:translateX(-50%);
-    background:rgba(20,17,13,0.72);
-    color:var(--white);
-    font-size:11px;
-    padding:5px 12px;
-    border-radius:999px;
-    pointer-events:none;
-    opacity:0;
-    transition:opacity 200ms var(--ease-out);
-  }
-
-  body.compare-mode .compare-zoom-hint{
-    opacity:1;
-  }
-
-  .compare-collapse-btn{
-    display:none;
-    position:absolute;
-    top:8px;
-    right:8px;
-    width:32px;
-    height:32px;
-    border-radius:50%;
-    border:none;
-    background:rgba(255,255,255,0.92);
-    color:var(--ink);
+    padding:48px 20px;
+    text-align:center;
+    color:var(--ink-soft);
     font-size:14px;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    box-shadow:0 2px 6px rgba(0,0,0,0.15);
-    z-index:5;
-    transition:transform 200ms var(--ease-out);
   }
 
-  /* ---- 桌機（≥1024px）：左右分欄 ---- */
-  @media (min-width:1024px){
-    body.compare-mode #compare-layout{
-      flex-direction:row;
-      align-items:flex-start;
-      gap:24px;
+  @media (max-width:600px){
+    .page-tab-btn{
+      font-size:14px;
     }
-
-    body.compare-mode .compare-photo-pane{
-      width:45%;
-      flex-shrink:0;
-      position:sticky;
-      top:20px;
-      align-self:flex-start;
-    }
-
-    body.compare-mode .compare-photo-viewport{
-      height:calc(100vh - 40px);
-      cursor:grab;
-    }
-
-    body.compare-mode .compare-photo-viewport.dragging{
-      cursor:grabbing;
-    }
-
-    body.compare-mode .compare-photo-viewport img{
-      width:auto;
-      height:100%;
-      max-width:none;
-    }
-
-    body.compare-mode .compare-grid-pane{
-      flex:1;
-      min-width:0;
-    }
-  }
-
-  /* ---- 手機/窄視窗（<1024px）：原圖 sticky 頂部面板 ---- */
-  @media (max-width:1023px){
-    body.compare-mode .compare-photo-pane{
-      position:sticky;
-      top:0;
-      z-index:20;
-      background:var(--off-white);
-      padding-bottom:10px;
-      margin:0 -14px;
-      padding-left:14px;
-      padding-right:14px;
-    }
-
-    body.compare-mode .compare-photo-viewport{
-      height:38vh;
-      cursor:grab;
-      transition:height 220ms var(--ease-in-out);
-    }
-
-    body.compare-mode .compare-photo-viewport.dragging{
-      cursor:grabbing;
-    }
-
-    body.compare-mode .compare-photo-pane.collapsed .compare-photo-viewport{
-      height:44px;
-    }
-
-    body.compare-mode .compare-photo-pane.collapsed .compare-zoom-hint{
-      opacity:0;
-    }
-
-    body.compare-mode .compare-collapse-btn{
-      display:flex;
-    }
-
-    body.compare-mode .compare-photo-pane.collapsed .compare-collapse-btn{
-      transform:rotate(180deg);
+    .page-tab-btn + .page-tab-btn{
+      margin-left:12px;
     }
   }
 
@@ -786,7 +672,7 @@
   .mobile-detail-grid .mobile-cell.role-cell{
     background:var(--white);
     border:1px solid var(--border-hair);
-    font-size:11.5px;
+    font-size:13px;
   }
 
   /* v4：手機版兩行格（本人 3x3 主題總覽格＋子宮格中心格） */
@@ -821,9 +707,9 @@
   }
 
   .mobile-cell.two-line .cell-service{
-    font-size:12px;
+    font-size:15px;
     font-weight:700;
-    line-height:1.28;
+    line-height:1.24;
   }
 
   .mobile-cell.two-line .cell-divider{
@@ -834,9 +720,9 @@
   }
 
   .mobile-cell.two-line .cell-ta{
-    font-size:10.5px;
+    font-size:13px;
     font-weight:600;
-    line-height:1.22;
+    line-height:1.18;
     color:var(--gold);
   }
 
@@ -850,7 +736,7 @@
     border-radius:5px;
     padding:1px 5px;
     display:inline-block;
-    font-size:9.5px;
+    font-size:11px;
     font-weight:600;
     font-style:normal;
   }
@@ -1491,30 +1377,15 @@
     <div class="leader-badge" id="active-leader-badge">★ 組長</div>
   </div>
 
-  <!-- 第一屏：原圖照片 -->
-  <div class="section-head">
-    <h2>手寫九宮格原圖</h2>
-    <span class="section-note">點圖放大</span>
-    <button class="compare-toggle-btn" id="compare-toggle-btn" onclick="toggleCompareMode()">🔍 對照模式</button>
+  <!-- v4.1：個人頁分頁（左「互動九宮格」預設／右「原始手寫圖」） -->
+  <div class="page-tabs" role="tablist" aria-label="個人頁內容切換">
+    <button type="button" class="page-tab-btn active" id="tab-btn-grid" role="tab" aria-selected="true" aria-controls="tab-panel-grid" onclick="switchPageTab('grid')">互動九宮格</button>
+    <button type="button" class="page-tab-btn" id="tab-btn-photo" role="tab" aria-selected="false" aria-controls="tab-panel-photo" onclick="switchPageTab('photo')">原始手寫圖</button>
   </div>
 
-  <div id="compare-layout">
-  <div class="compare-photo-pane" id="compare-photo-pane">
-    <button class="compare-collapse-btn" id="compare-collapse-btn" onclick="toggleComparePaneCollapse()" aria-label="收合原圖面板">▾</button>
-    <div class="compare-photo-viewport" id="compare-photo-viewport">
-  <div class="photo-frame">
-    <img id="original-photo" src="" alt="原圖" onclick="openLightbox()">
-  </div>
-      <div class="compare-zoom-hint">滾輪縮放・拖曳平移</div>
-    </div>
-    <!-- /.compare-photo-viewport -->
-    <p class="photo-hint">原圖為手寫版本，下方互動九宮格為數位化整理版</p>
-  </div>
-  <!-- /.compare-photo-pane -->
+  <!-- 左 tab：互動九宮格（預設開啟） -->
+  <div class="page-tab-panel active" id="tab-panel-grid" role="tabpanel" aria-labelledby="tab-btn-grid">
 
-  <div class="compare-grid-pane" id="compare-grid-pane">
-
-  <!-- 第二屏：互動 81 格曼陀羅 -->
   <div class="section-head">
     <h2>互動九宮格（81 格曼陀羅）</h2>
     <span class="section-note">手機請點主題格放大</span>
@@ -1552,15 +1423,29 @@
     </div>
   </div>
 
+  </div>
+  <!-- /#tab-panel-grid -->
+
+  <!-- 右 tab：原始手寫圖（v3 對照模式已下架，僅保留 lightbox 放大） -->
+  <div class="page-tab-panel original-photo-panel" id="tab-panel-photo" role="tabpanel" aria-labelledby="tab-btn-photo" hidden>
+
+  <div class="section-head">
+    <h2>手寫九宮格原圖</h2>
+    <span class="section-note" id="original-photo-note">點圖放大</span>
+  </div>
+
+  <div class="photo-frame" id="original-photo-frame">
+    <img id="original-photo" src="" alt="原圖" onclick="openLightbox()">
+  </div>
+  <p class="photo-hint">原圖為手寫版本，「互動九宮格」分頁為數位化整理版</p>
+
+  </div>
+  <!-- /#tab-panel-photo -->
+
   <footer>
     <span>E組｜房產客戶成長鏈</span>
     <a href="#" class="footer-edit-link" id="footer-edit-link" onclick="event.preventDefault(); toggleEditMode(true);">✏️ 編輯這頁</a>
   </footer>
-
-  </div>
-  <!-- /.compare-grid-pane -->
-  </div>
-  <!-- /#compare-layout -->
 
   </div>
   <!-- /#page-active -->
@@ -2141,10 +2026,8 @@
 
   // ================= Lightbox =================
   function openLightbox(){
-    // 對照模式下圖片本身已可滾輪縮放/拖曳平移，不再需要另跳全螢幕 lightbox，
-    // 且拖曳放開時的殘留 click 事件不該誤觸發全螢幕
-    if(isCompareMode) return;
     const src = document.getElementById("original-photo").src;
+    if(!src) return; // placeholder 狀態（無原圖）不開 lightbox
     document.getElementById("lightbox-img").src = src;
     document.getElementById("lightbox").classList.add("open");
     document.body.style.overflow = "hidden";
@@ -2156,6 +2039,34 @@
   document.addEventListener("keydown", (e) => {
     if(e.key === "Escape") closeLightbox();
   });
+
+  // ================= v4.1：原始手寫圖 tab（含無原圖防呆 placeholder） =================
+  function renderOriginalPhoto(id, data){
+    const frame = document.getElementById("original-photo-frame");
+    const note = document.getElementById("original-photo-note");
+    if(data.photo){
+      frame.innerHTML = '<img id="original-photo" src="' + data.photo + '" alt="' + id + ' ' + data.self.name + ' 手寫九宮格原圖" onclick="openLightbox()">';
+      note.textContent = "點圖放大";
+    } else {
+      frame.innerHTML = '<img id="original-photo" src="" alt="" style="display:none;">';
+      frame.insertAdjacentHTML("beforeend", '<p class="original-photo-placeholder">尚未提供手寫版</p>');
+      note.textContent = "";
+    }
+  }
+
+  // ================= v4.1：個人頁分頁（互動九宮格／原始手寫圖） =================
+  function switchPageTab(which){
+    const isGrid = which === "grid";
+    document.getElementById("tab-btn-grid").classList.toggle("active", isGrid);
+    document.getElementById("tab-btn-grid").setAttribute("aria-selected", String(isGrid));
+    document.getElementById("tab-btn-photo").classList.toggle("active", !isGrid);
+    document.getElementById("tab-btn-photo").setAttribute("aria-selected", String(!isGrid));
+
+    document.getElementById("tab-panel-grid").classList.toggle("active", isGrid);
+    document.getElementById("tab-panel-grid").hidden = !isGrid;
+    document.getElementById("tab-panel-photo").classList.toggle("active", !isGrid);
+    document.getElementById("tab-panel-photo").hidden = isGrid;
+  }
 
   // ===== 15 人名單（逐字取自 [[_E組總表]]，2026-07-03 更新）=====
   // built 不寫死：id 是否在 PEOPLE_DATA（data.js）裡有資料，動態決定灰階/完整頁
@@ -2246,8 +2157,8 @@
       dualTeamBadge.style.display = "none";
     }
 
-    document.getElementById("original-photo").src = data.photo;
-    document.getElementById("original-photo").alt = id + " " + data.self.name + " 手寫九宮格原圖";
+    renderOriginalPhoto(id, data);
+    switchPageTab("grid"); // 每次切換夥伴一律重置回預設「互動九宮格」tab
 
     currentId = id;
     state = loadState(id);
@@ -2344,161 +2255,6 @@
     document.getElementById("roster-backdrop").classList.remove("open");
     document.getElementById("roster-toggle").setAttribute("aria-expanded", "false");
   }
-
-  // ================= 對照模式（原圖 vs 81 格逐格比對，Joan 真實使用回饋） =================
-  let isCompareMode = false;
-  let compareScale = 1;
-  let compareTranslateX = 0;
-  let compareTranslateY = 0;
-  const COMPARE_SCALE_MIN = 1;
-  const COMPARE_SCALE_MAX = 4;
-
-  function toggleCompareMode(){
-    isCompareMode = !isCompareMode;
-    document.body.classList.toggle("compare-mode", isCompareMode);
-    const btn = document.getElementById("compare-toggle-btn");
-    btn.textContent = isCompareMode ? "✕ 退出對照" : "🔍 對照模式";
-    btn.classList.toggle("active", isCompareMode);
-
-    if(isCompareMode){
-      resetCompareTransform();
-    } else {
-      // 退出對照模式：收合狀態一併重置，避免下次進入卡在收合態
-      document.getElementById("compare-photo-pane").classList.remove("collapsed");
-    }
-  }
-
-  function toggleComparePaneCollapse(){
-    const pane = document.getElementById("compare-photo-pane");
-    const btn = document.getElementById("compare-collapse-btn");
-    const collapsed = pane.classList.toggle("collapsed");
-    btn.setAttribute("aria-label", collapsed ? "展開原圖面板" : "收合原圖面板");
-  }
-
-  function resetCompareTransform(){
-    compareScale = 1;
-    compareTranslateX = 0;
-    compareTranslateY = 0;
-    applyCompareTransform();
-  }
-
-  function applyCompareTransform(){
-    const img = document.getElementById("original-photo");
-    if(!img) return;
-    img.style.transform = `translate(${compareTranslateX}px, ${compareTranslateY}px) scale(${compareScale})`;
-  }
-
-  function clampCompareTranslate(){
-    // 簡易夾限：不做精準邊界運算（避免依賴即時量測造成閃爍），只避免飄太遠
-    const bound = 600 * compareScale;
-    compareTranslateX = Math.max(-bound, Math.min(bound, compareTranslateX));
-    compareTranslateY = Math.max(-bound, Math.min(bound, compareTranslateY));
-  }
-
-  // ---- 滾輪縮放（桌機） ----
-  function initCompareWheelZoom(){
-    const viewport = document.getElementById("compare-photo-viewport");
-    if(!viewport) return;
-    viewport.addEventListener("wheel", (e) => {
-      if(!isCompareMode) return;
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.12 : 0.12;
-      compareScale = Math.max(COMPARE_SCALE_MIN, Math.min(COMPARE_SCALE_MAX, compareScale + delta));
-      if(compareScale === COMPARE_SCALE_MIN){
-        compareTranslateX = 0;
-        compareTranslateY = 0;
-      }
-      clampCompareTranslate();
-      applyCompareTransform();
-    }, { passive:false });
-  }
-
-  // ---- 拖曳平移（滑鼠 + 觸控皆用 Pointer Events） ----
-  function initComparePan(){
-    const viewport = document.getElementById("compare-photo-viewport");
-    if(!viewport) return;
-
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startTranslateX = 0;
-    let startTranslateY = 0;
-
-    // 雙指縮放（觸控）狀態
-    let pinchStartDist = null;
-    let pinchStartScale = 1;
-    const activePointers = new Map();
-
-    function distanceBetween(p1, p2){
-      return Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    }
-
-    viewport.addEventListener("pointerdown", (e) => {
-      if(!isCompareMode) return;
-      activePointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-      viewport.setPointerCapture(e.pointerId);
-
-      if(activePointers.size === 1){
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        startTranslateX = compareTranslateX;
-        startTranslateY = compareTranslateY;
-        viewport.classList.add("dragging");
-      } else if(activePointers.size === 2){
-        isDragging = false;
-        const pts = Array.from(activePointers.values());
-        pinchStartDist = distanceBetween(pts[0], pts[1]);
-        pinchStartScale = compareScale;
-      }
-    });
-
-    viewport.addEventListener("pointermove", (e) => {
-      if(!isCompareMode) return;
-      if(!activePointers.has(e.pointerId)) return;
-      activePointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-
-      if(activePointers.size === 2 && pinchStartDist){
-        const pts = Array.from(activePointers.values());
-        const newDist = distanceBetween(pts[0], pts[1]);
-        const ratio = newDist / pinchStartDist;
-        compareScale = Math.max(COMPARE_SCALE_MIN, Math.min(COMPARE_SCALE_MAX, pinchStartScale * ratio));
-        clampCompareTranslate();
-        applyCompareTransform();
-        return;
-      }
-
-      if(isDragging && activePointers.size === 1){
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        compareTranslateX = startTranslateX + dx;
-        compareTranslateY = startTranslateY + dy;
-        clampCompareTranslate();
-        applyCompareTransform();
-      }
-    });
-
-    function endPointer(e){
-      activePointers.delete(e.pointerId);
-      if(activePointers.size < 2){
-        pinchStartDist = null;
-      }
-      if(activePointers.size === 0){
-        isDragging = false;
-        viewport.classList.remove("dragging");
-      }
-    }
-
-    viewport.addEventListener("pointerup", endPointer);
-    viewport.addEventListener("pointercancel", endPointer);
-    viewport.addEventListener("pointerleave", (e) => {
-      // 只在真的放開所有手指/滑鼠時才結束，避免游標移出 viewport 邊界就中斷拖曳
-      if(e.buttons === 0) endPointer(e);
-    });
-  }
-
-  initCompareWheelZoom();
-  initComparePan();
 
   // ===== 初始化：讀 URL ?id=NNN 決定初始顯示誰 =====
   // 三種情況：現役名單 → 正常開該人；已退出名單（DEPARTED_ROSTER）→ 友善提示，不 fallback 不 404；
