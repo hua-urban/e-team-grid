@@ -3,8 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<!-- v4.1fix2：GitHub Pages index.html 本身帶 Cache-Control: max-age=600（無法自訂 headers），
+     這幾個 meta 是瀏覽器層防快取提示上限；根本解仍是 GAS 部署鐵律裡的 cache-busting query string，
+     但 index.html 這個檔名本身不能加版本號（GitHub Pages 固定路徑），故雙管齊下。 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>E組九宮格｜房產客戶成長鏈</title>
-<script src="data.js?v=20260703v41fix"></script>
+<script src="data.js?v=20260703v41fix2"></script>
 <style>
   :root{
     --white:#FFFFFF;
