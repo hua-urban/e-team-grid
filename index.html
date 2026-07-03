@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>E組九宮格｜房產客戶成長鏈</title>
-<script src="data.js"></script>
+<script src="data.js?v=20260703v41fix"></script>
 <style>
   :root{
     --white:#FFFFFF;
@@ -1810,6 +1810,7 @@
     isEditMode = on;
     document.body.classList.toggle("edit-mode", on);
     document.getElementById("edit-banner").classList.toggle("active", on);
+    closeAllModals(); // v4.1 修復：進出編輯模式一律確保沒有殘留開啟的 modal 卡住後續點擊
     if(on){
       window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
     }
@@ -1836,7 +1837,20 @@
     openGuideModal(themeIdx, gridIdx, cellData);
   }
 
+  // v4.1 修復：三個 modal（edit/wizard/guide）共用同一 z-index 全螢幕 backdrop，
+  // 若前一個 modal 沒關乾淨就開下一個，backdrop 會疊加攔截點擊（pointer events intercept）。
+  // 開任一 modal 前，先強制關閉另外兩個，確保任何時刻最多一個 backdrop 是 open。
+  function closeAllModals(){
+    document.getElementById("edit-modal-backdrop").classList.remove("open");
+    document.getElementById("wizard-backdrop").classList.remove("open");
+    document.getElementById("guide-backdrop").classList.remove("open");
+    editTarget = null;
+    wizardState = null;
+    guideTarget = null;
+  }
+
   function openEditModal(labelText, currentValue){
+    closeAllModals();
     document.getElementById("edit-modal-label").textContent = labelText;
     const textarea = document.getElementById("edit-modal-textarea");
     textarea.value = currentValue;
@@ -1879,6 +1893,7 @@
   let wizardState = null; // { themeIdx, step, draftService, draftTa }
 
   function openWizardModal(themeIdx){
+    closeAllModals();
     const theme = state.themes[themeIdx];
     wizardState = { themeIdx, step:1, draftService: theme.service || "", draftTa: theme.ta || "" };
     renderWizardStep();
@@ -1957,6 +1972,7 @@
   let guideTarget = null; // { themeIdx, gridIdx, cellData }
 
   function openGuideModal(themeIdx, gridIdx, cellData){
+    closeAllModals();
     const theme = state.themes[themeIdx];
     guideTarget = { themeIdx, gridIdx, cellData };
     const serviceLabel = theme.service || "（本人未填）";
@@ -2037,7 +2053,12 @@
     document.body.style.overflow = "";
   }
   document.addEventListener("keydown", (e) => {
-    if(e.key === "Escape") closeLightbox();
+    if(e.key === "Escape"){
+      closeLightbox();
+      // v4.1 修復：Escape 也要能關掉編輯用的三個 modal，避免使用者忘記點「取消」
+      // 導致 backdrop 卡住、下一次點擊被全螢幕遮罩攔截（tester 回報的 wizard 打不開 root cause）
+      closeAllModals();
+    }
   });
 
   // ================= v4.1：原始手寫圖 tab（含無原圖防呆 placeholder） =================
@@ -2159,6 +2180,7 @@
 
     renderOriginalPhoto(id, data);
     switchPageTab("grid"); // 每次切換夥伴一律重置回預設「互動九宮格」tab
+    closeAllModals(); // v4.1 修復：切換夥伴時若有殘留開啟的 modal（未正常關閉），一併清除，避免下個人的格子點擊被卡住的 backdrop 攔截
 
     currentId = id;
     state = loadState(id);
