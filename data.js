@@ -3,7 +3,9 @@
 // 交叉核對：C:\Users\Joan\Projects\e-team-grid\*-謄錄對照.md
 // 每人：8 個外圍主題 × 8 格（依原圖方位順序：左上→上→右上→左→右→左下→下→右下）
 // 空白格＝空字串（render 虛線「＋」）；含 ⚠️ 的格＝原圖存疑，前端加淡黃底提示
-// 全域規則：040 王雅慧不放入（她不是 E 組）；028/030/054/055 未交，此檔不建資料，index.html roster 端維持佔位頁
+// 全域規則：040 王雅慧不放入（她不是 E 組）；054 陳品攸已退出 E 組不建資料（DEPARTED_ROSTER 處理）
+// 028/030/055 未交手寫版但已建後端帳號：2026-07-06 起補空殼 entry（self 基本資料、themes 全空、無 photo），
+// 讓個人頁走完整九宮格流程（可編輯存檔），不再卡在 placeholder（tester b-7 修復，見檔案尾端）
 //
 // v4（2026-07-03）：themes[i].title/sub → themes[i].service/ta 兩欄位（核心服務＋TA 結構）
 // service/ta 依 [[_v4服務TA拆分對照表]] 匯入（12 人，已 main 抽驗）；017 已退出 E 組（DEPARTED_ROSTER），維持舊 title/sub 不動，不影響顯示
@@ -175,6 +177,38 @@ const PEOPLE_DATA = {
     ]
   },
 
+  // 2026-07-06 tester b-7 修復：未交件者補空殼 entry（self 帶 ROSTER 基本資料、themes 全空）
+  // 讓 index.html 的 isBuilt() 判定為 true → 走完整九宮格頁面（非 placeholder），
+  // GAS hydrateFromBackend() 到手後會用後端 data_json 靜默覆蓋 self/themes（本人若已填東西即顯示）。
+  // 無 photo 欄位 → renderOriginalPhoto() 自動顯示「尚未提供手寫版」（§ 11.7 既有機制，不必新寫）。
+  "028": {
+    self: { name:"林佩君", en:"", role:"", area:"" },
+    themes: [
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] }
+    ]
+  },
+
+  "030": {
+    self: { name:"李慧如", en:"Eva", role:"", area:"" },
+    themes: [
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] }
+    ]
+  },
+
   "031": {
     // 只用 b 版（a 版已確認為 040 王雅慧，歸檔走了）
     self: { name:"凃馨文", en:"Wen", role:"家電 B2B", area:"" },
@@ -312,8 +346,23 @@ const PEOPLE_DATA = {
       { service:"改建鑑定估價", ta:"開發商/建設公司",
         roles:["開發商/建設公司","地政士/代書","技師","更新會","建築師","全案管理公司","地主召集人","估價師"] }
     ]
+  },
+
+  "055": {
+    self: { name:"吳念鎧", en:"", role:"", area:"" },
+    themes: [
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] },
+      { service:"", ta:"", roles:["","","","","","","",""] }
+    ]
   }
 
 };
 
-// 4 位未交件（維持佔位頁，不建資料）：028 林佩君、030 李慧如 Eva、054 陳品攸、055 吳念鎧
+// 054 陳品攸已退出 E 組（DEPARTED_ROSTER 處理，不在此檔建資料，不受本次修復影響）
+// 028/030/055 已於 2026-07-06 補空殼 entry（tester b-7 修復，詳見各自 entry 上方註解）
