@@ -987,6 +987,44 @@
     color:#A05050;
   }
 
+  /* ================= 後端模式：存檔狀態 toast ================= */
+  .save-toast{
+    position:fixed;
+    left:50%;
+    bottom:24px;
+    transform:translateX(-50%) translateY(20px);
+    background:var(--ink);
+    color:var(--white);
+    padding:12px 20px;
+    border-radius:10px;
+    font-size:13px;
+    line-height:1.5;
+    max-width:min(90vw, 420px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.2);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+    z-index:500;
+  }
+  .save-toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+  .save-toast.error{
+    background:var(--red-deep);
+  }
+  .save-toast-retry{
+    display:block;
+    margin-top:6px;
+    color:var(--white);
+    text-decoration:underline;
+    background:none;
+    border:none;
+    font-size:12.5px;
+    cursor:pointer;
+    padding:0;
+  }
+
   /* ================= v4：wizard／5 問引導 modal ================= */
 
   .wizard-step{
@@ -1365,8 +1403,9 @@
 
   <!-- 編輯模式提示條 -->
   <div class="edit-banner" id="edit-banner">
-    <span class="edit-banner-text">編輯模式，點任一格修改。原型版改動只存在這台裝置，正式版會同步給所有人。</span>
+    <span class="edit-banner-text" id="edit-banner-text">編輯模式，點任一格修改。</span>
     <span class="edit-banner-actions">
+      <button class="edit-reset-link" id="edit-rename-btn" onclick="openEditorNameModal(true)" style="display:none;">改名字</button>
       <button class="edit-reset-link" onclick="resetToDefault()">還原預設</button>
       <button class="edit-done-btn" onclick="toggleEditMode(false)">完成編輯</button>
     </span>
@@ -1527,9 +1566,115 @@
   </div>
 </div>
 
+<!-- 後端模式：編輯前先填「我是誰」（§ 6.4 ③ 風險緩解，自由填寫、localStorage 記住） -->
+<div class="edit-modal-backdrop" id="editor-name-backdrop">
+  <div class="edit-modal" onclick="event.stopPropagation()">
+    <p class="edit-modal-label">開始編輯前，請留下你的名字</p>
+    <p class="wizard-desc">存檔時會通知瓊安「誰改了哪一格」，方便追蹤，隨時可在頁尾再次修改這個名字。</p>
+    <input type="text" id="editor-name-input" class="wizard-input" placeholder="例：張瓊安">
+    <div class="edit-modal-actions">
+      <button class="edit-modal-btn primary" onclick="confirmEditorName()">開始編輯</button>
+    </div>
+  </div>
+</div>
+
+<!-- 存檔狀態提示（後端模式：存檔中／已存檔／失敗可重試） -->
+<div class="save-toast" id="save-toast"></div>
+
 <script>
   // ===== 資料源：data.js 的 PEOPLE_DATA（13 人，逐字取自各自 vault md，不改寫不腦補） =====
   // PEOPLE_DATA 由 <script src="data.js"> 提供，此檔不再寫死任何一人的資料
+
+  // ===== 後端模式開關（PRD § 12）=====
+  // 空字串＝維持現行 localStorage-only 行為（今天上線的模式，不打任何後端）。
+  // 部署 GAS 拿到 /exec 網址後填進來即啟用跨裝置同步＋Telegram 通知，見 backend/部署SOP.md。
+  const API_URL = "";
+  const BACKEND_ENABLED = API_URL.trim() !== "";
+
+  // ===== 編輯者姓名（§ 6.4 ③ 風險緩解：自由填寫，localStorage 記住，隨時可改）=====
+  const EDITOR_NAME_KEY = "e-team-grid-editor-name";
+  function getEditorName(){
+    try{ return localStorage.getItem(EDITOR_NAME_KEY) || ""; } catch(e){ return ""; }
+  }
+  function setEditorName(name){
+    try{ localStorage.setItem(EDITOR_NAME_KEY, name); } catch(e){ /* 私密瀏覽模式等寫入失敗，不阻擋編輯 */ }
+  }
+
+  // ===== 存檔狀態 toast（後端模式用；localStorage-only 模式不會呼叫這些）=====
+  let toastTimer = null;
+  function showToast(text, isError, retryFn){
+    const el = document.getElementById("save-toast");
+    el.innerHTML = "";
+    el.appendChild(document.createTextNode(text));
+    if(isError && retryFn){
+      const btn = document.createElement("button");
+      btn.className = "save-toast-retry";
+      btn.type = "button";
+      btn.textContent = "重試";
+      btn.onclick = retryFn;
+      el.appendChild(btn);
+    }
+    el.classList.toggle("error", !!isError);
+    el.classList.add("show");
+    if(toastTimer) clearTimeout(toastTimer);
+    if(!isError){
+      toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+    }
+    // 失敗訊息不自動消失，讓使用者看得到「重試」按鈕；下次存檔或關閉編輯模式時再蓋掉。
+  }
+  function hideToast(){
+    document.getElementById("save-toast").classList.remove("show");
+  }
+
+  // ===== 後端 API：doGet（讀）／doPost（寫）=====
+  // cache-busting：doGet 每次帶當下時間戳，避免瀏覽器對 GET 做 heuristic caching（踩坑速查有此坑）。
+  async function fetchAllFromBackend(){
+    if(!BACKEND_ENABLED) return null;
+    const url = API_URL + (API_URL.indexOf("?") === -1 ? "?" : "&") + "v=" + Date.now();
+    const resp = await fetch(url, { method:"GET", cache:"no-store" });
+    if(!resp.ok) throw new Error("HTTP " + resp.status);
+    const json = await resp.json();
+    if(!json.ok) throw new Error(json.error || "後端回傳失敗");
+    return json.data;
+  }
+
+  // GAS doPost 用 text/plain 送，避開 CORS preflight（GAS 經典限制，踩坑速查有記錄）。
+  async function postToBackend(payload){
+    const resp = await fetch(API_URL, {
+      method:"POST",
+      headers: { "Content-Type":"text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    if(!resp.ok) throw new Error("HTTP " + resp.status);
+    const json = await resp.json();
+    if(!json.ok) throw new Error(json.error || "後端回傳失敗");
+    return json;
+  }
+
+  // 冷啟 hydrate：data.js 先渲染的畫面已經在螢幕上，這裡靜默把後端最新資料覆蓋進 PEOPLE_DATA 快取，
+  // 成功才重繪目前頁面；失敗只 console.warn，頁面維持 data.js 內容繼續運作（PRD b-4／b-5 驗收）。
+  async function hydrateFromBackend(){
+    if(!BACKEND_ENABLED) return;
+    try{
+      const all = await fetchAllFromBackend();
+      if(!all) return;
+      Object.keys(all).forEach(id => {
+        const person = all[id];
+        if(!person || !person.self) return;
+        // 後端沒有 photo/leader 這類純前端展示欄位，保留 data.js 原本的、只覆蓋 self/themes。
+        const existing = PEOPLE_DATA[id] || {};
+        PEOPLE_DATA[id] = Object.assign({}, existing, { self: person.self, themes: person.themes });
+      });
+      // 若目前顯示的人有更新，重新載入該人的 state 並重繪（不打斷使用者正在編輯的 modal）
+      if(currentId && isBuilt(currentId) && !isEditMode){
+        state = loadState(currentId);
+        renderDesktop();
+        renderMobile();
+      }
+    } catch(err){
+      console.warn("[hydrateFromBackend] 後端資料抓取失敗，維持 data.js 內容：", err.message);
+    }
+  }
 
   // 九宮格周圍位置順序（略過中心）：0..7 對應 grid 8 格（跳過正中央）
   const RING_ORDER = [0,1,2,3,5,6,7,8]; // grid-area index 1~9，跳過第5格(中心)
@@ -1585,15 +1730,56 @@
     return { self, themes };
   }
 
-  function persistState(){
-    if(!currentId) return;
-    localStorage.setItem(storageKeyFor(currentId), JSON.stringify({ self: state.self, themes: state.themes }));
+  // 存檔核心：localStorage-only 模式＝原行為（同步、必成功）；後端模式＝doPost 成功才算數，
+  // localStorage 降級為快取（PRD § 12.1「存檔策略」）。回傳 Promise<boolean> 給呼叫端判斷要不要關 modal。
+  // changes：[{path,label,oldValue,newValue}]，後端模式才用來組 Telegram 通知內容。
+  async function persistState(changes){
+    if(!currentId) return true;
+
+    if(!BACKEND_ENABLED){
+      localStorage.setItem(storageKeyFor(currentId), JSON.stringify({ self: state.self, themes: state.themes }));
+      return true;
+    }
+
+    showToast("存檔中…", false);
+    try{
+      await postToBackend({
+        id: currentId,
+        editor: getEditorName() || "（未填名）",
+        changes: changes || [],
+        data: { self: state.self, themes: state.themes }
+      });
+      // 後端寫入成功後，localStorage 只當快取用（跨裝置真相源已是 Sheet）
+      localStorage.setItem(storageKeyFor(currentId), JSON.stringify({ self: state.self, themes: state.themes }));
+      showToast("已存檔", false);
+      return true;
+    } catch(err){
+      console.warn("[persistState] 後端存檔失敗：", err.message);
+      showToast("存檔失敗：" + err.message + "（請重試，內容還在畫面上不會遺失）", true, () => persistState(changes).then(ok => {
+        if(ok){
+          hideToast();
+        }
+      }));
+      return false;
+    }
   }
 
   function resetToDefault(){
-    const ok = window.confirm("確定要清除本機所有編輯，還原成原始資料嗎？");
+    const msg = BACKEND_ENABLED
+      ? "確定要清除本機快取、重新載入雲端最新資料嗎？（不會刪除雲端已存的內容）"
+      : "確定要清除本機所有編輯，還原成原始資料嗎？";
+    const ok = window.confirm(msg);
     if(!ok) return;
     localStorage.removeItem(storageKeyFor(currentId));
+    if(BACKEND_ENABLED){
+      hydrateFromBackend().then(() => {
+        state = loadState(currentId);
+        renderDesktop();
+        renderMobile();
+        if(currentThemeIdx !== null) redrawMobileDetailInPlace(currentThemeIdx);
+      });
+      return;
+    }
     state = loadState(currentId);
     renderDesktop();
     renderMobile();
@@ -1817,14 +2003,54 @@
   // ================= 編輯模式（Joan 定案不鎖權限，token 設計作廢） =================
   let isEditMode = false;
   let editTarget = null; // { kind: "self"|"theme-title"|"role", themeIdx, gridIdx, cellData }
+  let pendingEditorNameForEditMode = false; // true＝填完「我是誰」後要接著真正打開編輯模式
 
   function toggleEditMode(on){
+    // 後端模式下，進編輯模式前必須先有編輯者名字（§ 6.4 ③）；還沒填過就先彈 modal，
+    // 填完由 confirmEditorName() 接著呼叫 toggleEditMode(true) 真正生效。
+    if(on && BACKEND_ENABLED && !getEditorName()){
+      pendingEditorNameForEditMode = true;
+      openEditorNameModal(false);
+      return;
+    }
+
     isEditMode = on;
     document.body.classList.toggle("edit-mode", on);
     document.getElementById("edit-banner").classList.toggle("active", on);
+    document.getElementById("edit-banner-text").textContent = BACKEND_ENABLED
+      ? "編輯模式，點任一格修改，存檔後所有人都看得到。"
+      : "編輯模式，點任一格修改。原型版改動只存在這台裝置，正式版會同步給所有人。";
+    document.getElementById("edit-rename-btn").style.display = BACKEND_ENABLED ? "" : "none";
     closeAllModals(); // v4.1 修復：進出編輯模式一律確保沒有殘留開啟的 modal 卡住後續點擊
+    if(!on) hideToast();
     if(on){
       window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
+    }
+  }
+
+  // ===== 「我是誰」modal（後端模式；純 localStorage 模式不會被觸發）=====
+  // forRename=true：頁尾「改名字」主動觸發，純改名不連動編輯模式開關
+  // forRename=false：進編輯模式但尚未填過名字，填完接著真正進編輯模式
+  function openEditorNameModal(forRename){
+    closeAllModals(); // 「改名字」可能在其他 modal 開著時被點到（理論上不會，防禦性保留）
+    pendingEditorNameForEditMode = !forRename;
+    document.getElementById("editor-name-input").value = getEditorName();
+    document.getElementById("editor-name-backdrop").classList.add("open");
+    setTimeout(() => document.getElementById("editor-name-input").focus(), 50);
+  }
+
+  function confirmEditorName(){
+    const input = document.getElementById("editor-name-input");
+    const name = input.value.trim();
+    if(!name){
+      input.focus();
+      return; // 空白不給過，這一步是通知機制的必要欄位
+    }
+    setEditorName(name);
+    document.getElementById("editor-name-backdrop").classList.remove("open");
+    if(pendingEditorNameForEditMode){
+      pendingEditorNameForEditMode = false;
+      toggleEditMode(true);
     }
   }
 
@@ -1858,6 +2084,7 @@
     document.getElementById("edit-modal-backdrop").classList.remove("open");
     document.getElementById("wizard-backdrop").classList.remove("open");
     document.getElementById("guide-backdrop").classList.remove("open");
+    document.getElementById("editor-name-backdrop").classList.remove("open");
     editTarget = null;
     wizardState = null;
     guideTarget = null;
@@ -1881,19 +2108,24 @@
     document.getElementById("edit-modal-textarea").value = "";
   }
 
-  function saveEditField(){
+  async function saveEditField(){
     if(!editTarget) return;
     const value = document.getElementById("edit-modal-textarea").value.trim();
+    const changes = [];
 
     if(editTarget.kind === "self"){
+      const oldValue = `${state.self.name}\n${state.self.role}\n${state.self.area}`;
       const lines = value.split("\n").map(s => s.trim());
       state.self.name = lines[0] || state.self.name;
       state.self.role = lines[1] || "";
       state.self.area = lines[2] || "";
+      changes.push({ path:"self", label:"本人資料", oldValue, newValue:value });
     }
 
     const affectedThemeIdx = editTarget.kind !== "self" ? editTarget.themeIdx : null;
-    persistState();
+    const ok = await persistState(changes);
+    if(!ok) return; // 存檔失敗：modal 保留開啟，toast 已顯示重試按鈕，內容不遺失
+
     closeEditModal();
     renderDesktop();
     renderMobile();
@@ -1937,7 +2169,7 @@
     }
   }
 
-  function wizardNext(){
+  async function wizardNext(){
     const input = document.getElementById("wizard-input");
     if(wizardState.step === 1){
       wizardState.draftService = input.value.trim();
@@ -1948,9 +2180,22 @@
       wizardState.draftTa = input.value.trim();
       const savedThemeIdx = wizardState.themeIdx; // closeWizardModal() 會把 wizardState 清 null，先存起來
       const theme = state.themes[savedThemeIdx];
+      const oldService = theme.service, oldTa = theme.ta;
       theme.service = wizardState.draftService;
       theme.ta = wizardState.draftTa;
-      persistState();
+
+      const changes = [
+        { path:`themes[${savedThemeIdx}].service`, label:`第 ${savedThemeIdx+1} 格核心服務`, oldValue:oldService, newValue:theme.service },
+        { path:`themes[${savedThemeIdx}].ta`, label:`第 ${savedThemeIdx+1} 格 TA`, oldValue:oldTa, newValue:theme.ta }
+      ];
+      const ok = await persistState(changes);
+      if(!ok){
+        // 存檔失敗：回滾這兩個欄位、保留 modal 開啟讓使用者重試，避免畫面與後端不一致
+        theme.service = oldService;
+        theme.ta = oldTa;
+        return;
+      }
+
       closeWizardModal();
       renderDesktop();
       renderMobile();
@@ -1969,6 +2214,10 @@
 
   document.getElementById("wizard-input").addEventListener("keydown", (e) => {
     if(e.key === "Enter"){ e.preventDefault(); wizardNext(); }
+  });
+
+  document.getElementById("editor-name-input").addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){ e.preventDefault(); confirmEditorName(); }
   });
 
   function pulseSubCenter(themeIdx){
@@ -2008,10 +2257,12 @@
     document.getElementById("guide-input").value = "";
   }
 
-  function saveGuideField(){
+  async function saveGuideField(){
     if(!guideTarget) return;
     const value = document.getElementById("guide-input").value.trim();
     const theme = state.themes[guideTarget.themeIdx];
+    const oldRoles = theme.roles.slice(); // 深拷貝，存檔失敗時整份回滾用
+    const oldValue = guideTarget.cellData.type === "empty" ? "" : guideTarget.cellData.html;
     const ringPosition = RING_ORDER.indexOf(guideTarget.gridIdx);
     if(value === ""){
       if(ringPosition < theme.roles.length){
@@ -2024,7 +2275,15 @@
     }
 
     const affectedThemeIdx = guideTarget.themeIdx;
-    persistState();
+    const changes = [
+      { path:`themes[${affectedThemeIdx}].roles[${ringPosition}]`, label:`第 ${affectedThemeIdx+1} 格引薦角色`, oldValue, newValue:value }
+    ];
+    const ok = await persistState(changes);
+    if(!ok){
+      theme.roles = oldRoles; // 回滾，避免畫面與後端不一致；modal 保留開啟讓使用者重試
+      return;
+    }
+
     closeGuideModal();
     renderDesktop();
     renderMobile();
@@ -2310,6 +2569,10 @@
     const validRoster = ROSTER.some(p => p.id === requestedId);
     const initialId = validRoster ? requestedId : DEFAULT_ID;
     selectPartner(initialId);
+
+    // 後端模式：data.js 已經渲染完成（上面幾行），這裡才去打 GAS，成功就靜默覆蓋重繪（PRD § 12.1 hydrate）。
+    // 空 API_URL（BACKEND_ENABLED=false）時 hydrateFromBackend() 內部直接 return，完全不影響現行流程。
+    hydrateFromBackend();
   }
 
   initApp();
