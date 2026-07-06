@@ -1588,7 +1588,7 @@
   // ===== 後端模式開關（PRD § 12）=====
   // 空字串＝維持現行 localStorage-only 行為（今天上線的模式，不打任何後端）。
   // 部署 GAS 拿到 /exec 網址後填進來即啟用跨裝置同步＋Telegram 通知，見 backend/部署SOP.md。
-  const API_URL = "";
+  const API_URL = "https://script.google.com/macros/s/AKfycbxzbNzExdBdwK5tszaSft9MSE-XgMrA0Npk9hGbZMEXhIBZnErpBgXQyz73PQ7V0cks/exec";
   const BACKEND_ENABLED = API_URL.trim() !== "";
 
   // ===== 編輯者姓名（§ 6.4 ③ 風險緩解：自由填寫，localStorage 記住，隨時可改）=====
