@@ -7,7 +7,7 @@
  *
  * ★ 第一次部署：選 setup 函式按「執行」→ 自動建表＋灌 15 人初始資料＋授權秘書帳號
  * ★ 前端讀資料：doGet（全員 or ?id=NNN 單人）
- * ★ 前端寫資料：doPost（{id, editor, changes, data}），成功寫回 Sheet + 觸發 Telegram 通知
+ * ★ 前端寫資料：doPost（{id, changes, data}），成功寫回 Sheet + 觸發 Telegram 通知（不含編輯者身分，2026-07-08 拿掉）
  *
  * 部署 SOP 見同資料夾 `部署SOP.md`。
  */
@@ -194,8 +194,8 @@ function formatCellDate(v) {
 /**
  * doPost(e)
  * body（text/plain，前端 fetch 避 CORS preflight）：
- *   { id, editor, changes: [{path,label,oldValue,newValue}], data: { self, themes } }
- * 成功：找到該 id 列 → 覆寫 data_json / updated_at / last_editor → 回 { ok:true }
+ *   { id, changes: [{path,label,oldValue,newValue}], data: { self, themes } }
+ * 成功：找到該 id 列 → 覆寫 data_json / updated_at → 回 { ok:true }（last_editor 欄位保留但 2026-07-08 起不再寫入）
  *       → 另外觸發 Telegram 通知（失敗不擋寫入，try/catch 分離）
  * 失敗（找不到 id / payload 格式錯）：回 { ok:false, error }
  */
@@ -208,7 +208,6 @@ function doPost(e) {
   }
 
   var id = normalizeId(payload.id);
-  var editor = String(payload.editor || '（未填名）').trim();
   var changes = Array.isArray(payload.changes) ? payload.changes : [];
   var data = payload.data;
 
@@ -226,7 +225,6 @@ function doPost(e) {
   var idCol = headers.indexOf('id');
   var nameCol = headers.indexOf('name');
   var updatedCol = headers.indexOf('updated_at');
-  var editorCol = headers.indexOf('last_editor');
   var dataCol = headers.indexOf('data_json');
 
   var targetRow = -1;
@@ -250,13 +248,14 @@ function doPost(e) {
   sh.getRange(targetRow, idCol + 1).setNumberFormat('@').setValue(id);
   sh.getRange(targetRow, dataCol + 1).setValue(JSON.stringify(data));
   sh.getRange(targetRow, updatedCol + 1).setValue(now);
-  sh.getRange(targetRow, editorCol + 1).setValue(editor);
+  // ponytail-debt: last_editor 欄位不再寫入（2026-07-08 Joan 拍板拿掉「誰編輯」機制），
+  // Sheet schema 保留該欄不動，只是永遠留空／沿用初始值，未來若要徹底清除欄位需 main 回填技術債評估要不要動 schema。
   // name 欄跟著本人資料同步更新（若本人改了自己的名字）
   if (name) sh.getRange(targetRow, nameCol + 1).setValue(name);
 
   // Telegram 通知失敗不得阻擋資料寫入已完成的事實，try/catch 分離。
   try {
-    notifyTelegram(editor, id, name, changes);
+    notifyTelegram(id, name, changes);
   } catch (notifyErr) {
     Logger.log('[doPost] Telegram 通知失敗（資料已寫入，不影響存檔結果）：' + notifyErr.message);
   }
@@ -267,12 +266,13 @@ function doPost(e) {
 // ====== Telegram 通知 ======
 
 /**
- * notifyTelegram(editor, id, name, changes)
+ * notifyTelegram(id, name, changes)
  * Token / Chat ID 一律從 Script Properties 讀，不寫死在 code 裡（public repo 安全考量）。
  * 部署時設定：專案設定 → 指令碼屬性 → 新增 TG_TOKEN / TG_CHAT_ID
  * 真實值見部署 SOP 指針（見 [[敏感憑證總表]] § Telegram OPS bot）。
+ * 2026-07-08：拿掉「誰改的」內容（Joan 拍板不需要知道編輯者），通知只講哪一位的頁、改了哪幾格、新舊值。
  */
-function notifyTelegram(editor, id, name, changes) {
+function notifyTelegram(id, name, changes) {
   var props = PropertiesService.getScriptProperties();
   var token = props.getProperty('TG_TOKEN');
   var chatId = props.getProperty('TG_CHAT_ID');
@@ -291,7 +291,6 @@ function notifyTelegram(editor, id, name, changes) {
     : '（未帶明細）';
 
   var text = '✏️ E組九宮格更新通知\n'
-    + '編輯者：' + editor + '\n'
     + '改了誰的頁：' + name + '（' + id + '）\n'
     + '改動內容：\n' + changeLines;
 

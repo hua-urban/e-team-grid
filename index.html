@@ -1420,7 +1420,6 @@
   <div class="edit-banner" id="edit-banner">
     <span class="edit-banner-text" id="edit-banner-text">編輯模式，點任一格修改。</span>
     <span class="edit-banner-actions">
-      <button class="edit-reset-link" id="edit-rename-btn" onclick="openEditorNameModal(true)" style="display:none;">改名字</button>
       <button class="edit-reset-link" onclick="resetToDefault()">還原預設</button>
       <button class="edit-done-btn" onclick="toggleEditMode(false)">完成編輯</button>
     </span>
@@ -1581,18 +1580,6 @@
   </div>
 </div>
 
-<!-- 後端模式：編輯前先填「我是誰」（§ 6.4 ③ 風險緩解，自由填寫、localStorage 記住） -->
-<div class="edit-modal-backdrop" id="editor-name-backdrop">
-  <div class="edit-modal" onclick="event.stopPropagation()">
-    <p class="edit-modal-label">開始編輯前，請留下你的名字</p>
-    <p class="wizard-desc">存檔時會通知瓊安「誰改了哪一格」，方便追蹤，隨時可在頁尾再次修改這個名字。</p>
-    <input type="text" id="editor-name-input" class="wizard-input" placeholder="例：張瓊安">
-    <div class="edit-modal-actions">
-      <button class="edit-modal-btn primary" onclick="confirmEditorName()">開始編輯</button>
-    </div>
-  </div>
-</div>
-
 <!-- 存檔狀態提示（後端模式：存檔中／已存檔／失敗可重試） -->
 <div class="save-toast" id="save-toast"></div>
 
@@ -1605,15 +1592,6 @@
   // 部署 GAS 拿到 /exec 網址後填進來即啟用跨裝置同步＋Telegram 通知，見 backend/部署SOP.md。
   const API_URL = "https://script.google.com/macros/s/AKfycbxzbNzExdBdwK5tszaSft9MSE-XgMrA0Npk9hGbZMEXhIBZnErpBgXQyz73PQ7V0cks/exec";
   const BACKEND_ENABLED = API_URL.trim() !== "";
-
-  // ===== 編輯者姓名（§ 6.4 ③ 風險緩解：自由填寫，localStorage 記住，隨時可改）=====
-  const EDITOR_NAME_KEY = "e-team-grid-editor-name";
-  function getEditorName(){
-    try{ return localStorage.getItem(EDITOR_NAME_KEY) || ""; } catch(e){ return ""; }
-  }
-  function setEditorName(name){
-    try{ localStorage.setItem(EDITOR_NAME_KEY, name); } catch(e){ /* 私密瀏覽模式等寫入失敗，不阻擋編輯 */ }
-  }
 
   // ===== 存檔狀態 toast（後端模式用；localStorage-only 模式不會呼叫這些）=====
   let toastTimer = null;
@@ -1760,7 +1738,6 @@
     try{
       await postToBackend({
         id: currentId,
-        editor: getEditorName() || "（未填名）",
         changes: changes || [],
         data: { self: state.self, themes: state.themes }
       });
@@ -2018,54 +1995,18 @@
   // ================= 編輯模式（Joan 定案不鎖權限，token 設計作廢） =================
   let isEditMode = false;
   let editTarget = null; // { kind: "self"|"theme-title"|"role", themeIdx, gridIdx, cellData }
-  let pendingEditorNameForEditMode = false; // true＝填完「我是誰」後要接著真正打開編輯模式
 
   function toggleEditMode(on){
-    // 後端模式下，進編輯模式前必須先有編輯者名字（§ 6.4 ③）；還沒填過就先彈 modal，
-    // 填完由 confirmEditorName() 接著呼叫 toggleEditMode(true) 真正生效。
-    if(on && BACKEND_ENABLED && !getEditorName()){
-      pendingEditorNameForEditMode = true;
-      openEditorNameModal(false);
-      return;
-    }
-
     isEditMode = on;
     document.body.classList.toggle("edit-mode", on);
     document.getElementById("edit-banner").classList.toggle("active", on);
     document.getElementById("edit-banner-text").textContent = BACKEND_ENABLED
       ? "編輯模式，點任一格修改，存檔後所有人都看得到。"
       : "編輯模式，點任一格修改。原型版改動只存在這台裝置，正式版會同步給所有人。";
-    document.getElementById("edit-rename-btn").style.display = BACKEND_ENABLED ? "" : "none";
     closeAllModals(); // v4.1 修復：進出編輯模式一律確保沒有殘留開啟的 modal 卡住後續點擊
     if(!on) hideToast();
     if(on){
       window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
-    }
-  }
-
-  // ===== 「我是誰」modal（後端模式；純 localStorage 模式不會被觸發）=====
-  // forRename=true：頁尾「改名字」主動觸發，純改名不連動編輯模式開關
-  // forRename=false：進編輯模式但尚未填過名字，填完接著真正進編輯模式
-  function openEditorNameModal(forRename){
-    closeAllModals(); // 「改名字」可能在其他 modal 開著時被點到（理論上不會，防禦性保留）
-    pendingEditorNameForEditMode = !forRename;
-    document.getElementById("editor-name-input").value = getEditorName();
-    document.getElementById("editor-name-backdrop").classList.add("open");
-    setTimeout(() => document.getElementById("editor-name-input").focus(), 50);
-  }
-
-  function confirmEditorName(){
-    const input = document.getElementById("editor-name-input");
-    const name = input.value.trim();
-    if(!name){
-      input.focus();
-      return; // 空白不給過，這一步是通知機制的必要欄位
-    }
-    setEditorName(name);
-    document.getElementById("editor-name-backdrop").classList.remove("open");
-    if(pendingEditorNameForEditMode){
-      pendingEditorNameForEditMode = false;
-      toggleEditMode(true);
     }
   }
 
@@ -2099,7 +2040,6 @@
     document.getElementById("edit-modal-backdrop").classList.remove("open");
     document.getElementById("wizard-backdrop").classList.remove("open");
     document.getElementById("guide-backdrop").classList.remove("open");
-    document.getElementById("editor-name-backdrop").classList.remove("open");
     editTarget = null;
     wizardState = null;
     guideTarget = null;
@@ -2229,10 +2169,6 @@
 
   document.getElementById("wizard-input").addEventListener("keydown", (e) => {
     if(e.key === "Enter"){ e.preventDefault(); wizardNext(); }
-  });
-
-  document.getElementById("editor-name-input").addEventListener("keydown", (e) => {
-    if(e.key === "Enter"){ e.preventDefault(); confirmEditorName(); }
   });
 
   function pulseSubCenter(themeIdx){
