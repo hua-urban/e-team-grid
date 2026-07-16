@@ -2015,9 +2015,8 @@
 
   function onSelfCellClick(){
     if(!isEditMode) return;
-    editTarget = { kind:"self" };
     const current = `${state.self.name}\n${state.self.role}\n${state.self.area}`;
-    openEditModal("本人資料（姓名 / 專業別 / 區域，一行一項）", current);
+    openEditModal({ kind:"self" }, "本人資料（姓名 / 專業別 / 區域，一行一項）", current);
   }
 
   // v4：兩步 wizard 入口（依重要性填核心服務 → 填 TA）。
@@ -2048,8 +2047,9 @@
     guideTarget = null;
   }
 
-  function openEditModal(labelText, currentValue){
-    closeAllModals();
+  function openEditModal(target, labelText, currentValue){
+    closeAllModals(); // 會把 editTarget 清成 null，所以 target 一定要在這行之後才寫入
+    editTarget = target;
     document.getElementById("edit-modal-label").textContent = labelText;
     const textarea = document.getElementById("edit-modal-textarea");
     textarea.value = currentValue;
