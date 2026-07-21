@@ -600,18 +600,188 @@
     body.projection-mode .content-area{margin-left:0;}
     body.projection-mode .wrap{max-width:none; padding:0 24px 64px;}
 
-    body.projection-mode .micro-cell{font-size:17px;}
-    body.projection-mode .macro-center .micro-cell.theme-preview{font-size:17px;}
-    body.projection-mode .macro-theme .micro-cell.theme-center{font-size:17.5px;}
-    body.projection-mode .macro-theme .micro-cell.role-cell{font-size:17px;}
-    body.projection-mode .two-line .cell-service{font-size:17px;}
-    body.projection-mode .two-line .cell-ta{font-size:14.5px;}
-    body.projection-mode .two-line .cell-ta.empty{font-size:13px;}
-    body.projection-mode .two-line .cell-rank{font-size:12px; width:20px; height:20px;}
-    body.projection-mode .macro-center .micro-cell.self{font-size:17px;}
-    body.projection-mode .macro-center .micro-cell.self .self-name{font-size:22px;}
-    body.projection-mode .macro-center .micro-cell.self .self-sub{font-size:15px;}
-    body.projection-mode .mandala-desktop.compact-mode .two-line .cell-service{font-size:19px;}
+    /* --- 投影＝簡報動線（2026-07-21 Joan 回饋：正方形 81 格塞不進 16:9 螢幕）——
+       全貌縮到一屏當地圖，點宮格開 focus overlay 放大逐區講 --- */
+    body.projection-mode .partner-card,
+    body.projection-mode .page-tabs,
+    body.projection-mode .section-head,
+    body.projection-mode .mandala-legend,
+    body.projection-mode .soft-hint-count,
+    body.projection-mode footer{display:none;}
+    body.projection-mode .mode-toggle-row{
+      max-width:calc(100vh - 108px);
+      margin:10px auto;
+    }
+    body.projection-mode .mandala-desktop{
+      max-width:calc(100vh - 108px);
+      margin:0 auto;
+    }
+    /* 全貌宮格可點（開 focus overlay）的 affordance */
+    body.projection-mode .macro-cell{cursor:zoom-in;}
+    body.projection-mode .macro-cell:hover{outline:2.5px solid var(--gold); outline-offset:2px; border-radius:10px;}
+
+    /* --- 投影降噪（Joan 回饋「放大後亂、花」）：對齊原始紙本表格的視覺語彙——
+       白底黑字為主、紅色只當重點框不當色塊、輔助元素（rank/待補提示）退場 --- */
+    body.projection-mode .mandala-desktop{gap:12px; padding:12px;}
+    body.projection-mode .macro-cell{gap:5px;}
+    /* 紅色大色塊 → 紅框白底黑字（原表「紅框=重點」語彙；中央 8 服務格＋外圈 8 中心格同框） */
+    body.projection-mode .macro-theme .micro-cell.theme-center{
+      background:var(--white);
+      border:2.5px solid var(--red);
+      color:var(--ink);
+    }
+    body.projection-mode .macro-center .micro-cell.theme-preview{
+      border:2.5px solid var(--red);
+    }
+    /* TA 行統一深金（白底上比亮金沉穩） */
+    body.projection-mode .two-line .cell-ta{color:var(--gold-deep);}
+    /* rank 順序角標淡化：透明底灰字，保留導覽功能、不搶戲 */
+    body.projection-mode .two-line .cell-rank{
+      background:transparent;
+      color:#B0AAA0;
+      border:1px solid #DDD8D0;
+    }
+    /* 「＋補 TA」「＋」待補提示是內部編輯用，投影給組員看時退場／淡化 */
+    body.projection-mode .two-line .cell-ta.empty{visibility:hidden;}
+    body.projection-mode .macro-theme .micro-cell.role-empty{color:#DDD8D0; border-color:#E6E2DB;}
+  }
+
+  /* ================= 投影 focus overlay：單一宮格 3×3 放大（簡報逐區講） ================= */
+
+  .focus-overlay{
+    position:fixed;
+    inset:0;
+    z-index:80;
+    background:rgba(253,252,251,0.985);
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+
+  .focus-overlay.open{display:flex;}
+
+  .focus-head{
+    display:flex;
+    align-items:baseline;
+    gap:18px;
+    margin-bottom:16px;
+  }
+
+  .focus-title{
+    font-size:27px;
+    font-weight:800;
+    color:var(--ink);
+  }
+
+  .focus-title .focus-ta{
+    color:var(--gold-deep);
+    font-size:19px;
+    font-weight:700;
+    margin-left:12px;
+  }
+
+  .focus-nav-hint{
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+
+  .focus-close{
+    position:absolute;
+    top:22px;
+    right:26px;
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    border:1px solid var(--border-hair);
+    background:var(--white);
+    color:var(--ink);
+    font-size:22px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .focus-arrow{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    border:1px solid var(--border-hair);
+    background:var(--white);
+    color:var(--ink);
+    font-size:24px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,0.08);
+  }
+
+  .focus-arrow.prev{left:28px;}
+  .focus-arrow.next{right:28px;}
+  .focus-arrow:hover{border-color:var(--red); color:var(--red);}
+
+  .focus-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr);
+    gap:12px;
+    width:min(76vh, 90vw);
+    aspect-ratio:1/1;
+  }
+
+  .focus-cell{
+    background:var(--white);
+    border:1.5px solid var(--border-hair);
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:14px;
+    font-size:24px;
+    font-weight:600;
+    line-height:1.32;
+    color:var(--ink);
+    overflow:hidden;
+    word-break:break-word;
+  }
+
+  .focus-cell.f-center{
+    border:3.5px solid var(--red);
+    flex-direction:column;
+  }
+
+  .focus-cell .f-service{
+    font-size:28px;
+    font-weight:800;
+  }
+
+  .focus-cell .f-ta{
+    font-size:19px;
+    font-weight:700;
+    color:var(--gold-deep);
+    margin-top:8px;
+  }
+
+  .focus-cell.f-self{
+    background:linear-gradient(135deg, #E5C77A 0%, var(--gold) 55%, var(--gold-deep) 100%);
+    color:#3A2C0E;
+    border:none;
+    flex-direction:column;
+  }
+
+  .focus-cell.f-self .f-service{font-size:32px;}
+  .focus-cell.f-self .f-ta{color:#3A2C0E; opacity:0.85;}
+
+  .focus-cell.f-empty{
+    background:transparent;
+    border:1.5px dashed #DDD8D0;
   }
 
   /* ---- mobile 3x3 + 子宮格 drill-down ---- */
@@ -1623,6 +1793,18 @@
 <!-- 存檔狀態提示（後端模式：存檔中／已存檔／失敗可重試） -->
 <div class="save-toast" id="save-toast"></div>
 
+<!-- 投影 focus overlay：點宮格放大逐區講（僅投影模式） -->
+<div class="focus-overlay" id="focus-overlay">
+  <button class="focus-close" onclick="closeFocus()" aria-label="關閉">×</button>
+  <button class="focus-arrow prev" onclick="stepFocus(-1)" aria-label="上一宮格">‹</button>
+  <button class="focus-arrow next" onclick="stepFocus(1)" aria-label="下一宮格">›</button>
+  <div class="focus-head">
+    <div class="focus-title" id="focus-title"></div>
+    <div class="focus-nav-hint">←→ 切換宮格　Esc 關閉</div>
+  </div>
+  <div class="focus-grid" id="focus-grid"></div>
+</div>
+
 <script>
   // ===== 資料源：data.js 的 PEOPLE_DATA（13 人，逐字取自各自 vault md，不改寫不腦補） =====
   // PEOPLE_DATA 由 <script src="data.js"> 提供，此檔不再寫死任何一人的資料
@@ -1726,13 +1908,107 @@
     renderDesktop();
   }
 
-  // 投影模式（2026-07-21）：收側欄＋九宮格全寬＋字級放大，開會投影用
+  // 投影模式（2026-07-21）：簡報動線——全貌縮成一屏地圖＋點宮格開 focus overlay 放大逐區講
   function toggleProjection(){
     const on = document.body.classList.toggle("projection-mode");
     const btn = document.getElementById("projection-btn");
     btn.classList.toggle("active", on);
     btn.setAttribute("aria-pressed", String(on));
+    if(!on) closeFocus();
+    if(on) window.scrollTo({ top: 0 });
   }
+
+  // ===== 投影 focus overlay：單一宮格 3×3 放大 =====
+  // focusIdx＝macro 位置索引 0-8（4=中央本人宮格），null＝關閉
+  let focusIdx = null;
+
+  function openFocus(idx){
+    focusIdx = idx;
+    renderFocusOverlay();
+    document.getElementById("focus-overlay").classList.add("open");
+  }
+
+  function closeFocus(){
+    focusIdx = null;
+    document.getElementById("focus-overlay").classList.remove("open");
+  }
+
+  function stepFocus(delta){
+    if(focusIdx === null) return;
+    openFocus((focusIdx + delta + 9) % 9);
+  }
+
+  function renderFocusOverlay(){
+    if(focusIdx === null || !state) return;
+    const titleEl = document.getElementById("focus-title");
+    const gridEl = document.getElementById("focus-grid");
+    gridEl.innerHTML = "";
+
+    if(focusIdx === 4){
+      // 中央宮格：本人＋8 服務總覽
+      titleEl.innerHTML = escapeHtml(state.self.name)
+        + `<span class="focus-ta">${escapeHtml([state.self.role, state.self.area].filter(Boolean).join("・"))}</span>`;
+      let slot = 0;
+      for(let i=0;i<9;i++){
+        const c = document.createElement("div");
+        if(i===4){
+          c.className = "focus-cell f-self";
+          c.innerHTML = `<div class="f-service">${escapeHtml(state.self.name)}</div>`
+            + `<div class="f-ta">${escapeHtml([state.self.role, state.self.area].filter(Boolean).join("・"))}</div>`;
+        } else {
+          const t = state.themes[slot];
+          const rank = slot + 1;
+          if(t.service && t.service.trim()){
+            c.className = "focus-cell f-center";
+            c.innerHTML = `<div class="f-service">${rank}. ${escapeHtml(t.service)}</div>`
+              + (t.ta && t.ta.trim() ? `<div class="f-ta">${escapeHtml(t.ta)}</div>` : "");
+          } else {
+            c.className = "focus-cell f-empty";
+          }
+          slot++;
+        }
+        gridEl.appendChild(c);
+      }
+    } else {
+      // 主題宮格：服務中心格＋8 引薦角色
+      const tIdx = focusIdx < 4 ? focusIdx : focusIdx - 1;
+      const t = state.themes[tIdx];
+      titleEl.innerHTML = `${tIdx + 1}. ${escapeHtml(t.service && t.service.trim() ? t.service : "（本人未填）")}`
+        + (t.ta && t.ta.trim() ? `<span class="focus-ta">${escapeHtml(t.ta)}</span>` : "");
+      buildMicroGrid(t.roles, "", "theme-center").forEach(cd => {
+        const c = document.createElement("div");
+        if(cd.type === "center"){
+          c.className = "focus-cell f-center";
+          c.innerHTML = `<div class="f-service">${escapeHtml(t.service || "")}</div>`
+            + (t.ta && t.ta.trim() ? `<div class="f-ta">${escapeHtml(t.ta)}</div>` : "");
+        } else if(cd.type === "empty"){
+          c.className = "focus-cell f-empty";
+        } else {
+          c.className = "focus-cell";
+          c.textContent = cd.html;
+        }
+        gridEl.appendChild(c);
+      });
+    }
+  }
+
+  // 投影模式下點宮格 → 開 focus overlay（capture 攔截，避免觸發格子原本的編輯/導覽行為）
+  document.getElementById("mandala-desktop").addEventListener("click", (e) => {
+    if(!document.body.classList.contains("projection-mode")) return;
+    const macro = e.target.closest(".macro-cell");
+    if(!macro) return;
+    e.stopPropagation();
+    e.preventDefault();
+    openFocus(Array.prototype.indexOf.call(macro.parentNode.children, macro));
+  }, true);
+
+  // 鍵盤導覽：overlay 開啟時 Esc 關閉、←→ 切換宮格
+  document.addEventListener("keydown", (e) => {
+    if(focusIdx === null) return;
+    if(e.key === "Escape") closeFocus();
+    else if(e.key === "ArrowRight") stepFocus(1);
+    else if(e.key === "ArrowLeft") stepFocus(-1);
+  });
 
   // ===== 目前顯示中的人 =====
   let currentId = null; // 由 initApp() 依 URL ?id= 或側邊欄選擇決定
