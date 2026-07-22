@@ -1653,6 +1653,8 @@
     gap:14px;
   }
 
+  /* 2026-07-22：people-card 改 <details> 原生 accordion，about 頁 14 張預設收合。
+     個人頁單卡（buildLinkageCard showHeader=false）仍是純 <div>，不受影響。 */
   .linkage-card{
     background:var(--white);
     border:1px solid var(--border-hair);
@@ -1660,8 +1662,35 @@
     padding:16px 18px;
   }
 
+  .linkage-card summary{
+    cursor:pointer;
+    list-style:none;
+  }
+  .linkage-card summary::-webkit-details-marker{display:none;}
+  .linkage-card summary::marker{content:"";}
+
   .linkage-card-head{
-    margin:0 0 10px;
+    margin:0;
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:6px 10px;
+  }
+
+  details.linkage-card[open] > .linkage-card-head{
+    margin-bottom:10px;
+  }
+
+  .linkage-caret{
+    display:inline-block;
+    flex-shrink:0;
+    font-size:10px;
+    color:var(--gold-deep);
+    transition:transform 160ms var(--ease-out);
+  }
+
+  details.linkage-card[open] .linkage-caret{
+    transform:rotate(90deg);
   }
 
   .linkage-card-name{
@@ -1672,6 +1701,51 @@
   }
 
   .linkage-card-name:hover{color:var(--red);}
+
+  .linkage-card-meta{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+
+  /* 「最常被需要 Top 3」摘要條 */
+  .linkage-top3{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px 20px;
+    background:#FDF8EC;
+    border:1px solid var(--gold);
+    border-radius:12px;
+    padding:12px 16px;
+    margin-bottom:14px;
+    font-size:13px;
+  }
+  .linkage-top3:empty{display:none;}
+  .linkage-top3-label{
+    font-weight:800;
+    color:var(--gold-deep);
+  }
+  .linkage-top3-item{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .linkage-top3-rank{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:var(--gold);
+    color:#3A2C0E;
+    font-size:11px;
+    font-weight:800;
+  }
+  .linkage-top3-item a{color:var(--red); font-weight:700; text-decoration:none;}
+  .linkage-top3-item a:hover{text-decoration:underline;}
+  .linkage-top3-stat{color:var(--ink-soft); font-size:12px;}
 
   .linkage-row{
     font-size:12.5px;
@@ -2037,6 +2111,7 @@
       <h2>誰跟誰能連動</h2>
       <span class="section-note" id="about-linkage-summary"></span>
     </div>
+    <div class="linkage-top3" id="linkage-top3"></div>
     <div class="linkage-cards-grid" id="linkage-cards-grid"></div>
 
     <div class="section-head">
@@ -3118,9 +3193,10 @@
 
   let LINKAGE_RESULT = null;
 
-  // 計算全組連動：回傳 { perPerson, totalHits, mutualPairsCount }
-  // perPerson[id] = { mutualRows:[...], normalRows:[...] }（皆為「id 本人主動找誰」的 outbound 視角，
-  // 對應小卡格式「〈他的服務〉找 角色詞 → 對方名」；雙向互指的那一條額外進 mutualRows 置頂＋金框）
+  // 計算全組連動：回傳 { perPerson, totalHits, mutualPairsCount, inboundRanking }
+  // perPerson[id] = { mutualRows:[...], normalRows:[...], outboundCount }（皆為「id 本人主動找誰」的 outbound 視角，
+  // 依「目標人」聚合成一行，reasons[] 收該人被找的所有理由；雙向互指的那一列進 mutualRows 置頂＋金框）
+  // inboundRanking = 全員「被找」排行（inbound 視角，供 Top3 摘要用，見下方 renderLinkageTop3）
   function computeLinkage(){
     const ids = ROSTER.map(p => p.id).filter(id => isBuilt(id));
     const names = {};
@@ -3178,29 +3254,40 @@
     });
     function isMutual(a, b){ return mutualPairKeys.has([a, b].sort().join("|")); }
 
-    // 依「同一角色詞命中 ≥3 人」收斂：每人依 (service,role) 分組
+    // 2026-07-22 改版：依「目標人」聚合（原本依 service+role 分組會讓同一人被拆成好幾行）。
+    // 每個目標人只出現一行，該行底下列出所有指向他的理由（role 原文，逐字保留、僅去重複字串）；
+    // 雙向互指是 pair 層級性質（跟理由數無關），聚合後仍整行標 ⇄，不會被多理由淹沒。
     const perPerson = {};
     ids.forEach(a => {
-      const groups = new Map();
-      rawHits.filter(h => h.a === a).forEach(h => {
-        const key = h.service + "‖" + h.role;
-        if(!groups.has(key)) groups.set(key, { service: h.service, role: h.role, targets: [] });
-        groups.get(key).targets.push({ id: h.b, name: names[h.b], idw: h.idw, mutual: isMutual(a, h.b) });
+      const aHits = rawHits.filter(h => h.a === a);
+      const byTarget = new Map();
+      aHits.forEach(h => {
+        if(!byTarget.has(h.b)) byTarget.set(h.b, { id: h.b, name: names[h.b], mutual: isMutual(a, h.b), reasons: [] });
+        const entry = byTarget.get(h.b);
+        if(entry.reasons.indexOf(h.role) === -1) entry.reasons.push(h.role); // 去重複（同一理由文字出現兩次不算新資訊）
       });
-      const mutualRows = [];
-      const normalRows = [];
-      groups.forEach(g => {
-        const collapsed = g.targets.length >= 3;
-        if(!collapsed && g.targets.length === 1 && g.targets[0].mutual){
-          mutualRows.push({ service: g.service, role: g.role, targets: g.targets });
-        } else {
-          normalRows.push({ service: g.service, role: g.role, targets: g.targets, collapsed });
-        }
-      });
-      perPerson[a] = { mutualRows, normalRows };
+      const rows = Array.from(byTarget.values()).sort((x, y) => x.id.localeCompare(y.id));
+      perPerson[a] = {
+        mutualRows: rows.filter(r => r.mutual),
+        normalRows: rows.filter(r => !r.mutual),
+        outboundCount: aHits.length // 「N 條連動」口徑＝原始 hit 數，加總＝全組 totalHits，跟頂部摘要同單位
+      };
     });
 
-    return { perPerson, totalHits: rawHits.length, mutualPairsCount: mutualPairKeys.size };
+    // 2026-07-22 新增：inbound 視角（「誰最常被找」），供 Top3 摘要用。
+    // sourceCount＝有幾個不同的人會來找他（去重複，避免單一來源多理由把排行灌水）；
+    // hitCount＝原始命中條數（供對照，不當主排序鍵，理由見踩坑速查「同義字典鬆散主題群」）。
+    const inboundSources = {};
+    ids.forEach(id => { inboundSources[id] = new Set(); });
+    rawHits.forEach(h => { inboundSources[h.b].add(h.a); });
+    const inboundRanking = ids.map(id => ({
+      id,
+      name: names[id],
+      sourceCount: inboundSources[id].size,
+      hitCount: rawHits.filter(h => h.b === id).length
+    })).sort((x, y) => y.sourceCount - x.sourceCount || y.hitCount - x.hitCount || x.id.localeCompare(y.id));
+
+    return { perPerson, totalHits: rawHits.length, mutualPairsCount: mutualPairKeys.size, inboundRanking };
   }
 
   // 冷啟（data.js）先算一版；hydrate 到手／夥伴編輯存檔後靜默重算重繪
@@ -3217,49 +3304,82 @@
     }
   }
 
-  // 單張連動小卡（?page=about 用 14 張；個人頁「你能連動的人」重用同一份 render，隱藏重覆的姓名標頭）
+  // 單一目標人聚合列：把該人所有理由合併成一行文字（逐字保留、不截斷、不遺漏）
+  function buildLinkageTargetRow(row){
+    const reasonsHtml = row.reasons.map(r => escapeHtml(r)).join("、");
+    const countNote = row.reasons.length >= 2 ? `；共 ${row.reasons.length} 項` : "";
+    const mutualTag = row.mutual ? `<span class="linkage-mutual-tag">⇄ 雙向</span>` : "";
+    return `<div class="linkage-row${row.mutual ? " linkage-row-mutual" : ""}">${mutualTag}`
+      + `→ <a href="?id=${row.id}" onclick="return navToPartner(event,'${row.id}')">${escapeHtml(row.name)}</a>`
+      + `（${reasonsHtml}${countNote}）</div>`;
+  }
+
+  // 單張連動小卡：
+  // - about 頁（showHeader=true）：14 張預設收合 <details> accordion，標頭「編號 姓名・N條連動・⇄K組雙向」
+  // - 個人頁「你能連動的人」（showHeader=false）：重用同一份聚合/渲染邏輯，維持原本純 <div> 全展開、無標頭
+  //   （about 頁與個人頁共用同一份 render，不為 about 頁另外分岔一套，避免行為漂移）
   function buildLinkageCard(id, showHeader){
-    const info = (LINKAGE_RESULT && LINKAGE_RESULT.perPerson[id]) || { mutualRows: [], normalRows: [] };
-    const card = document.createElement("div");
-    card.className = "linkage-card";
-    let html = "";
-    if(showHeader !== false){
-      const name = PEOPLE_DATA[id].self.name;
-      html += `<div class="linkage-card-head"><a href="?id=${id}" class="linkage-card-name" onclick="return navToPartner(event,'${id}')">${escapeHtml(id)}　${escapeHtml(name)}</a></div>`;
-    }
+    const info = (LINKAGE_RESULT && LINKAGE_RESULT.perPerson[id]) || { mutualRows: [], normalRows: [], outboundCount: 0 };
+    let bodyHtml = "";
     if(info.mutualRows.length === 0 && info.normalRows.length === 0){
-      html += `<p class="linkage-empty">目前資料還看不出明顯連動，補齊 81 宮格後會更準。</p>`;
+      bodyHtml += `<p class="linkage-empty">目前資料還看不出明顯連動，補齊 81 宮格後會更準。</p>`;
     }
-    info.mutualRows.forEach(row => {
-      const t = row.targets[0];
-      html += `<div class="linkage-row linkage-row-mutual"><span class="linkage-mutual-tag">⇄ 雙向</span>`
-        + `〈${escapeHtml(row.service || "本人未填主題")}〉找 <b>${escapeHtml(row.role)}</b> → `
-        + `<a href="?id=${t.id}" onclick="return navToPartner(event,'${t.id}')">${escapeHtml(t.name)}</a>（${escapeHtml(t.idw)}）</div>`;
-    });
-    info.normalRows.forEach(row => {
-      if(row.collapsed){
-        const namesHtml = row.targets.map(t => `<a href="?id=${t.id}" onclick="return navToPartner(event,'${t.id}')">${escapeHtml(t.name)}</a>`).join("、");
-        html += `<div class="linkage-row">〈${escapeHtml(row.service || "本人未填主題")}〉找 <b>${escapeHtml(row.role)}</b> → ${namesHtml}…</div>`;
-      } else {
-        row.targets.forEach(t => {
-          html += `<div class="linkage-row">〈${escapeHtml(row.service || "本人未填主題")}〉找 <b>${escapeHtml(row.role)}</b> → `
-            + `<a href="?id=${t.id}" onclick="return navToPartner(event,'${t.id}')">${escapeHtml(t.name)}</a>（${escapeHtml(t.idw)}）</div>`;
-        });
-      }
-    });
-    card.innerHTML = html;
+    info.mutualRows.forEach(row => { bodyHtml += buildLinkageTargetRow(row); });
+    info.normalRows.forEach(row => { bodyHtml += buildLinkageTargetRow(row); });
+
+    if(showHeader === false){
+      const card = document.createElement("div");
+      card.className = "linkage-card";
+      card.innerHTML = bodyHtml;
+      return card;
+    }
+
+    const name = PEOPLE_DATA[id].self.name;
+    const mutualCount = info.mutualRows.length;
+    const metaText = `${info.outboundCount} 條連動` + (mutualCount > 0 ? `・⇄${mutualCount} 組雙向` : "");
+    const card = document.createElement("details");
+    card.className = "linkage-card";
+    card.dataset.personId = id; // renderLinkageCards() 重繪時靠這個記住使用者手動展開過哪些卡
+    card.innerHTML = `<summary class="linkage-card-head">`
+      + `<span class="linkage-caret">▸</span>`
+      + `<a href="?id=${id}" class="linkage-card-name" onclick="return navToPartner(event,'${id}')">${escapeHtml(id)}　${escapeHtml(name)}</a>`
+      + `<span class="linkage-card-meta">${escapeHtml(metaText)}</span>`
+      + `</summary><div class="linkage-card-body">${bodyHtml}</div>`;
     return card;
+  }
+
+  // 頂部「最常被需要 Top 3」摘要：取 inboundRanking 前 3（sourceCount>0），純前端 render，複用同一份計算結果
+  function renderLinkageTop3(){
+    const box = document.getElementById("linkage-top3");
+    if(!box) return;
+    if(!LINKAGE_RESULT || !LINKAGE_RESULT.inboundRanking){ box.innerHTML = ""; return; }
+    const top3 = LINKAGE_RESULT.inboundRanking.filter(r => r.sourceCount > 0).slice(0, 3);
+    if(top3.length === 0){ box.innerHTML = ""; return; }
+    const itemsHtml = top3.map((r, i) => {
+      return `<span class="linkage-top3-item">`
+        + `<span class="linkage-top3-rank">${i + 1}</span>`
+        + `<a href="?id=${r.id}" onclick="return navToPartner(event,'${r.id}')">${escapeHtml(r.name)}</a>`
+        + `<span class="linkage-top3-stat">（${r.sourceCount} 人會找・${r.hitCount} 條連動）</span>`
+        + `</span>`;
+    }).join("");
+    box.innerHTML = `<span class="linkage-top3-label">🔥 最常被需要</span>${itemsHtml}`;
   }
 
   function renderLinkageCards(){
     const grid = document.getElementById("linkage-cards-grid");
     const summary = document.getElementById("about-linkage-summary");
     if(!grid) return;
+    // GAS hydrate 到手／夥伴存檔都會重繪整組卡片；記住使用者手動展開過的卡，重繪後還原，
+    // 避免使用者剛點開一張卡、hydrate 一到手就被悄悄收合的體驗落差
+    const openIds = new Set(Array.from(grid.querySelectorAll("details.linkage-card[open]")).map(d => d.dataset.personId));
     grid.innerHTML = "";
     if(!LINKAGE_RESULT){ return; }
     summary.textContent = `共 ${LINKAGE_RESULT.totalHits} 條連動・${LINKAGE_RESULT.mutualPairsCount} 組雙向互指`;
+    renderLinkageTop3();
     ROSTER.map(p => p.id).filter(id => isBuilt(id)).sort().forEach(id => {
-      grid.appendChild(buildLinkageCard(id, true));
+      const card = buildLinkageCard(id, true);
+      if(openIds.has(id)) card.setAttribute("open", "");
+      grid.appendChild(card);
     });
   }
 
