@@ -1951,6 +1951,50 @@
     *{transition-duration:0.01ms !important; animation-duration:0.01ms !important;}
   }
 </style>
+
+<!-- ============================================================
+     一頁式覆蓋（2026-08-04 Joan：只要一頁、不要側邊欄）
+     刻意用獨立 style + !important 蓋在最後，不去動上面 index.html 沿用的 CSS，
+     日後要跟正式版 diff 時這段就是全部差異。
+     ============================================================ -->
+<style id="blank-single-page-overrides">
+  /* 名單側邊欄、漢堡鈕、手機遮罩全部退場（含投影模式下的規則） */
+  .roster-sidebar,
+  .roster-toggle,
+  .roster-backdrop,
+  body.projection-mode .roster-sidebar,
+  body.projection-mode .roster-sidebar.open,
+  body.projection-mode .roster-toggle,
+  body.projection-mode .roster-backdrop,
+  body.projection-mode .roster-backdrop.open{
+    display: none !important;
+  }
+  /* 側邊欄退場後，內容區補回滿版（原本桌機留 264px 給名單） */
+  .content-area,
+  body.projection-mode .content-area{
+    margin-left: 0 !important;
+  }
+  /* 單頁版不需要席位編號 */
+  #active-id{ display: none !important; }
+
+  /* 存檔提示條：常駐頁首，讓現場知道填的字有留下來 */
+  .blank-save-note{
+    max-width: 1180px;
+    margin: 14px auto -2px;
+    padding: 9px 14px;
+    border: 1px solid rgba(198,164,92,0.45);
+    border-radius: 8px;
+    background: rgba(198,164,92,0.10);
+    font-size: 0.86rem;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+  }
+  .blank-save-note b{ font-weight: 700; }
+  body.projection-mode .blank-save-note{ display: none !important; }
+  @media (max-width: 900px){
+    .blank-save-note{ margin: 10px 12px -2px; font-size: 0.8rem; }
+  }
+</style>
 </head>
 <body>
 
@@ -1972,7 +2016,12 @@
 
 <div class="wrap content-area">
 
-  <!-- 已建檔夥伴的完整內容（依側邊欄選擇動態切換） -->
+  <!-- 一頁式空白版：存檔說明常駐（投影模式自動退場） -->
+  <div class="blank-save-note">
+    填好的內容會<b>自動存在這台裝置的瀏覽器</b>，關掉分頁、關機重開都還在。要清空重來：點頁尾「✏️ 編輯這頁」→ 按「還原預設」。
+  </div>
+
+  <!-- 已建檔夥伴的完整內容（單頁版固定 b1） -->
   <div id="page-active">
 
   <!-- 編輯模式提示條 -->
@@ -1988,7 +2037,7 @@
   <div class="partner-card">
     <div>
       <p class="partner-id" id="active-id">b1</p>
-      <h1 class="partner-name" id="active-name">空白 1 <span class="en" id="active-en"></span></h1>
+      <h1 class="partner-name" id="active-name">空白九宮格 <span class="en" id="active-en"></span></h1>
       <p class="partner-meta" id="active-meta"></p>
       <p class="partner-dualteam-badge" id="active-dualteam-badge" style="display:none;"></p>
     </div>
@@ -3077,16 +3126,9 @@
   }
 
   // ===== 空白討論版名單：8 個空白席位（無真人資料）=====
-  // 每席都是全空的 81 格，現場可直接改名字／職業並填格子
+  // 2026-08-04 Joan 要求：只要一頁、不要側邊欄 → 單一席位
   const ROSTER = [
-    { id:"b1", name:"空白 1", en:"", role:"" },
-    { id:"b2", name:"空白 2", en:"", role:"" },
-    { id:"b3", name:"空白 3", en:"", role:"" },
-    { id:"b4", name:"空白 4", en:"", role:"" },
-    { id:"b5", name:"空白 5", en:"", role:"" },
-    { id:"b6", name:"空白 6", en:"", role:"" },
-    { id:"b7", name:"空白 7", en:"", role:"" },
-    { id:"b8", name:"空白 8", en:"", role:"" }
+    { id:"b1", name:"空白九宮格", en:"", role:"" }
   ];
 
   // 空白版沒有退出名單
