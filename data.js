@@ -459,7 +459,7 @@ const TEAM_GRID_DATA = {
       name: "不動產買賣",
       category: "marketing",
       status: "filled",
-      desc: "六人分屬不同地區與類型（Joan 2026-08-09：這格覺得不對，尚未想到怎麼改，暫時保留原樣）",
+      desc: "六人分屬不同地區與類型（瓊安 2026-08-09：這格覺得不對，尚未想到怎麼改，暫時保留原樣）",
       members: [
         { type: "roster", id: "007" },
         { type: "roster", id: "028" },
