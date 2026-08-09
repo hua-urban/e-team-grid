@@ -396,3 +396,98 @@ const PEOPLE_DATA = {
 
 // 054 陳品攸已退出 E 組（DEPARTED_ROSTER 處理，不在此檔建資料，不受本次修復影響）
 // 028/030/055 已於 2026-07-06 補空殼 entry（tester b-7 修復，詳見各自 entry 上方註解）
+
+// ============================================================
+// E 組組別九宮格（首頁，2026-08-09 新增）
+// 資料源：C:\Second Brain\Obsidian\Joan\工作\BNI-華都更分會\E組-房產客戶成長鏈\E組九宮格_定稿_20260805.md § 二
+// 逐格取自該檔「九宮格定稿」表格（學習型四格＋行銷型四格），一字不改；
+// 該檔 § 五「待辦」是未定案事項（想創造的成果、不動產買賣格怎麼改、第 9 格、統包工程撞名、左左專業別改名）
+// 全部未寫入本檔——這些是待 Joan 拍板的開放問題，不可當成既定內容。
+// cells[] 8 格對應版面（略過中央）：[0]左上 [1]上 [2]右上 [3]左 [4]右 [5]左下 [6]下 [7]右下
+// （與 index.html 既有 RING_ORDER = [0,1,2,3,5,6,7,8] 的九宮格排列順序一致，center 對應中間第 5 格）
+// members：{type:"roster",id:"NNN"} 連到 14 人名單（可點連到個人頁）；
+//          {type:"free",text:"..."} 自由文字（用於不在 14 人名單內的人，或空席說明）
+// ============================================================
+const TEAM_GRID_DATA = {
+  center: {
+    name: "E組 客戶成長產業鏈",
+    desc: "跨產業客戶轉介系統——一個客戶從任何一位夥伴進來，整條鏈的人都有生意做"
+  },
+  cells: [
+    {
+      name: "AI 智慧營運",
+      category: "learning",
+      status: "filled",
+      desc: "教分會小白用 AI 工具；8/6 分享會是第一場",
+      members: [
+        { type: "roster", id: "003" },
+        { type: "roster", id: "007" }
+      ]
+    },
+    {
+      name: "IP 打造・品牌賦能",
+      category: "learning",
+      status: "filled",
+      desc: "從零到一建個人品牌與變現；左左已輔導 112 位；瓊安有皇長建設案例",
+      members: [
+        { type: "roster", id: "043" },
+        { type: "roster", id: "007" }
+      ]
+    },
+    {
+      name: "不動產買賣",
+      category: "marketing",
+      status: "filled",
+      desc: "六人分屬不同地區與類型（Joan 2026-08-05：這格覺得不對，尚未想到怎麼改，暫時保留原樣）",
+      members: [
+        { type: "roster", id: "007" },
+        { type: "roster", id: "028" },
+        { type: "roster", id: "055" },
+        { type: "free", text: "莊涵勝（台北信義，非 E 組）" },
+        { type: "roster", id: "025" },
+        { type: "roster", id: "050" }
+      ]
+    },
+    {
+      name: "個人成長",
+      category: "learning",
+      status: "filled",
+      desc: "找到自己適合什麼；與「IP 打造・品牌賦能」的差別：IP 是對外建立品牌，個人成長是對內認識自己",
+      members: [
+        { type: "roster", id: "043" }
+      ]
+    },
+    {
+      name: "保險・財務規劃",
+      category: "marketing",
+      status: "filled",
+      desc: "",
+      members: [
+        { type: "roster", id: "047" }
+      ]
+    },
+    {
+      name: "股票・價值投資",
+      category: "learning",
+      status: "filled",
+      desc: "美股價值投資，持證券執照，已建投資社群，AI 輔助 3–4 個月報酬 20–30%",
+      members: [
+        { type: "roster", id: "043" }
+      ]
+    },
+    {
+      name: "輕裝修與統包工程",
+      category: "marketing",
+      status: "empty",
+      desc: "現成人選：蔡馨葳堂哥做統包近 30 年，8/4 組聚已表示可對接、可邀來組聚",
+      members: []
+    },
+    {
+      name: "包租代管",
+      category: "marketing",
+      status: "empty",
+      desc: "分會有藍堂嘉、陳靖薇、何俊彥、周育慈四人，都不在 E 組",
+      members: []
+    }
+  ]
+};

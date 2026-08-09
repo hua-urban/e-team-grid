@@ -9,6 +9,10 @@
  * ★ 前端讀資料：doGet（全員 or ?id=NNN 單人）
  * ★ 前端寫資料：doPost（{id, changes, data}），成功寫回 Sheet + 觸發 Telegram 通知（不含編輯者身分，2026-07-08 拿掉）
  *
+ * ★ 2026-08-09：新增「E 組組別九宮格」首頁功能（id="team"，資料形狀 {center,cells} 而非個人的 {self,themes}）。
+ *   readAllRows() 改 schema-agnostic、doPost() 補上「id 不存在時自動新增一列」（見各自函式註解）。
+ *   規格來源：main 派工 prompt「把 BNI 華都更分會 E 組九宮格網站的首頁改成『E 組組別九宮格』」（2026-08-09）。
+ *
  * 部署 SOP 見同資料夾 `部署SOP.md`。
  */
 
@@ -140,6 +144,10 @@ function doGet(e) {
 
 /**
  * 讀整張「E組資料」分頁，回傳 { id: { id, name, updated_at, last_editor, ...data_json展開 } }
+ * ★ 2026-08-09：改為 schema-agnostic——data_json 內部結構依 id 而異
+ *   （一般人＝{self,themes}；id="team" 組別九宮格＝{center,cells}），
+ *   這支只負責外層欄位（id/name/updated_at/last_editor），data_json 整份原樣展開，
+ *   不再假設一定含 self/themes（舊行為：解不出 self 就強制回空殼，會把 team 資料吃掉）。
  */
 function readAllRows(sh) {
   var values = sh.getDataRange().getValues();
@@ -158,22 +166,20 @@ function readAllRows(sh) {
     var id = normalizeId(row[idCol]);
     if (!id) continue;
 
-    var state = { self: { name: '', en: '', role: '', area: '' }, themes: [] };
+    var state = {};
     try {
       var parsed = JSON.parse(row[dataCol] || '{}');
-      if (parsed && parsed.self) state = parsed;
+      if (parsed && typeof parsed === 'object') state = parsed;
     } catch (err) {
       Logger.log('[readAllRows] id=' + id + ' data_json 解析失敗，回空 state：' + err.message);
     }
 
-    result[id] = {
+    result[id] = Object.assign({
       id: id,
       name: row[nameCol] || '',
       updated_at: formatCellDate(row[updatedCol]),
-      last_editor: row[editorCol] || '',
-      self: state.self,
-      themes: state.themes
-    };
+      last_editor: row[editorCol] || ''
+    }, state);
   }
   return result;
 }
@@ -194,10 +200,15 @@ function formatCellDate(v) {
 /**
  * doPost(e)
  * body（text/plain，前端 fetch 避 CORS preflight）：
- *   { id, changes: [{path,label,oldValue,newValue}], data: { self, themes } }
- * 成功：找到該 id 列 → 覆寫 data_json / updated_at → 回 { ok:true }（last_editor 欄位保留但 2026-07-08 起不再寫入）
- *       → 另外觸發 Telegram 通知（失敗不擋寫入，try/catch 分離）
- * 失敗（找不到 id / payload 格式錯）：回 { ok:false, error }
+ *   { id, name?, changes: [{path,label,oldValue,newValue}], data: {...} }
+ *   data 內部結構依 id 而異，本函式不假設固定 schema：一般人＝{self,themes}；
+ *   id="team"（E 組組別九宮格，2026-08-09 新增）＝{center,cells}。
+ * 成功：
+ *   - 該 id 列已存在 → 覆寫 data_json / updated_at → 回 { ok:true }（last_editor 欄位保留但 2026-07-08 起不再寫入）
+ *   - 該 id 列不存在 → ★ 2026-08-09 新增：自動新增一列（不再回錯誤），欄位 schema 與既有列一致，
+ *     用途：id="team" 這類新資料第一次存檔即可自動建列，不需要另外手動跑 setup() 或人工新增。
+ *   → 另外觸發 Telegram 通知（失敗不擋寫入，try/catch 分離）
+ * 失敗（payload 格式錯 / 多人同時存檔取不到鎖）：回 { ok:false, error }
  */
 function doPost(e) {
   var payload;
@@ -212,46 +223,67 @@ function doPost(e) {
   var data = payload.data;
 
   if (!id) return jsonOutput({ ok: false, error: '缺少 id' });
-  if (!data || !data.self || !Array.isArray(data.themes)) {
-    return jsonOutput({ ok: false, error: 'data 格式不正確（需含 self / themes）' });
+  // data 格式不再限定 {self,themes}（id="team" 是 {center,cells}），只驗「是物件」。
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return jsonOutput({ ok: false, error: 'data 格式不正確（需為物件）' });
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) return jsonOutput({ ok: false, error: '找不到分頁：' + SHEET_NAME });
 
-  var values = sh.getDataRange().getValues();
-  var headers = values[0].map(function (h) { return String(h).trim(); });
-  var idCol = headers.indexOf('id');
-  var nameCol = headers.indexOf('name');
-  var updatedCol = headers.indexOf('updated_at');
-  var dataCol = headers.indexOf('data_json');
+  // ★ 2026-08-09 新增：加鎖避免「id 不存在時自動新增列」在多人同時存檔時重複建列
+  //  （兩個請求都讀到「找不到」、都各自 append，會產生兩列同 id）。既有列覆寫本身是單列操作、
+  //  原本沒有這個競態風險，但新增列的判斷＋寫入不是原子操作，鎖是必要的，不是為了鎖而鎖。
+  var lock = LockService.getScriptLock();
+  var haveLock = lock.tryLock(10000);
+  if (!haveLock) {
+    return jsonOutput({ ok: false, error: '系統忙碌中（多人同時存檔），請稍後重試' });
+  }
 
-  var targetRow = -1;
-  for (var i = 1; i < values.length; i++) {
-    // ★ 雙保險第二層（寫入側）：Sheet 現存值不管是 number 3 / "3" / "003"，正規化後再比對。
-    if (normalizeId(values[i][idCol]) === id) {
-      targetRow = i + 1; // sheet 是 1-indexed，values 是 0-indexed
-      break;
+  var name;
+  try {
+    var values = sh.getDataRange().getValues();
+    var headers = values[0].map(function (h) { return String(h).trim(); });
+    var idCol = headers.indexOf('id');
+    var nameCol = headers.indexOf('name');
+    var updatedCol = headers.indexOf('updated_at');
+    var dataCol = headers.indexOf('data_json');
+
+    var targetRow = -1;
+    for (var i = 1; i < values.length; i++) {
+      // ★ 雙保險第二層（寫入側）：Sheet 現存值不管是 number 3 / "3" / "003"，正規化後再比對。
+      if (normalizeId(values[i][idCol]) === id) {
+        targetRow = i + 1; // sheet 是 1-indexed，values 是 0-indexed
+        break;
+      }
     }
+
+    var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    name = (data.self && data.self.name) || payload.name || id;
+
+    if (targetRow === -1) {
+      // 自動新增一列（原本回 { ok:false, error:'找不到 id' }，2026-08-09 起改自動建列）
+      targetRow = values.length + 1;
+      sh.getRange(targetRow, idCol + 1).setNumberFormat('@').setValue(id);
+      sh.getRange(targetRow, nameCol + 1).setValue(name);
+      sh.getRange(targetRow, dataCol + 1).setValue(JSON.stringify(data));
+      sh.getRange(targetRow, updatedCol + 1).setValue(now);
+      Logger.log('[doPost] id=' + id + ' 不存在，已自動新增一列（第 ' + targetRow + ' 列）');
+    } else {
+      // ★ 雙保險第一層（寫入側）：每次覆寫該列 id 前重新鎖一次純文字格式再寫值，
+      //   防禦「Sheet 欄位格式事後被人工改回一般格式」的邊界情況（例如 Joan 手動排序/貼上動到格式）。
+      sh.getRange(targetRow, idCol + 1).setNumberFormat('@').setValue(id);
+      sh.getRange(targetRow, dataCol + 1).setValue(JSON.stringify(data));
+      sh.getRange(targetRow, updatedCol + 1).setValue(now);
+      // ponytail-debt: last_editor 欄位不再寫入（2026-07-08 Joan 拍板拿掉「誰編輯」機制），
+      // Sheet schema 保留該欄不動，只是永遠留空／沿用初始值，未來若要徹底清除欄位需 main 回填技術債評估要不要動 schema。
+      // name 欄跟著本人資料同步更新（若本人改了自己的名字）
+      if (name) sh.getRange(targetRow, nameCol + 1).setValue(name);
+    }
+  } finally {
+    lock.releaseLock();
   }
-
-  if (targetRow === -1) {
-    return jsonOutput({ ok: false, error: '找不到 id：' + id + '（Sheet 內無此列，需先跑 setup() 或手動新增）' });
-  }
-
-  var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
-  var name = data.self.name || values[targetRow - 1][nameCol] || id;
-
-  // ★ 雙保險第一層（寫入側）：每次覆寫該列 id 前重新鎖一次純文字格式再寫值，
-  //   防禦「Sheet 欄位格式事後被人工改回一般格式」的邊界情況（例如 Joan 手動排序/貼上動到格式）。
-  sh.getRange(targetRow, idCol + 1).setNumberFormat('@').setValue(id);
-  sh.getRange(targetRow, dataCol + 1).setValue(JSON.stringify(data));
-  sh.getRange(targetRow, updatedCol + 1).setValue(now);
-  // ponytail-debt: last_editor 欄位不再寫入（2026-07-08 Joan 拍板拿掉「誰編輯」機制），
-  // Sheet schema 保留該欄不動，只是永遠留空／沿用初始值，未來若要徹底清除欄位需 main 回填技術債評估要不要動 schema。
-  // name 欄跟著本人資料同步更新（若本人改了自己的名字）
-  if (name) sh.getRange(targetRow, nameCol + 1).setValue(name);
 
   // Telegram 通知失敗不得阻擋資料寫入已完成的事實，try/catch 分離。
   try {

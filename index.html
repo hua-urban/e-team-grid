@@ -27,7 +27,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>E組九宮格｜房產客戶成長鏈</title>
-<script src="data.js?v=20260721wu055"></script>
+<script src="data.js?v=20260809teamgrid"></script>
 <style>
   :root{
     --white:#FFFFFF;
@@ -1907,6 +1907,265 @@
   }
   #personal-linkage-block .linkage-empty{grid-column:1 / -1;}
 
+  /* ================= 2026-08-09：首頁改版——E 組組別九宮格（team homepage） ================= */
+
+  .team-page-head-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .team-edit-toggle-btn{
+    padding:8px 16px;
+    border-radius:999px;
+    border:1.5px solid var(--red);
+    background:var(--white);
+    color:var(--red);
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+    font-family:inherit;
+    transition:background 140ms var(--ease-out), color 140ms var(--ease-out);
+  }
+
+  .team-edit-toggle-btn.active{
+    background:var(--red);
+    color:var(--white);
+  }
+
+  .team-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:12px;
+    margin:18px 0 22px;
+  }
+
+  .team-cell{
+    background:var(--white);
+    border:1.5px solid var(--border-hair);
+    border-radius:14px;
+    padding:16px 15px;
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+  }
+
+  .team-cell.learning{border-top:5px solid var(--gold-deep);}
+  .team-cell.marketing{border-top:5px solid var(--red);}
+
+  .team-cell.empty{
+    background:repeating-linear-gradient(135deg, var(--gray-bg), var(--gray-bg) 10px, #EFEAE2 10px, #EFEAE2 20px);
+    border-style:dashed;
+  }
+
+  .team-cell.center{
+    background:linear-gradient(135deg, #E5C77A 0%, var(--gold) 55%, var(--gold-deep) 100%);
+    color:#3A2C0E;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    border-top:none;
+  }
+
+  .team-cell.center .team-cell-name{font-size:16px;}
+  .team-cell.center .team-cell-desc{color:#3A2C0E; opacity:0.85;}
+
+  body.team-edit-mode .team-cell{
+    cursor:pointer;
+    outline:1.5px dashed rgba(200,16,46,0.55);
+    outline-offset:-1.5px;
+    position:relative;
+    transition:outline-color 140ms var(--ease-out), transform 140ms var(--ease-out);
+  }
+
+  body.team-edit-mode .team-cell:hover{
+    outline-color:var(--red);
+    transform:scale(1.02);
+  }
+
+  body.team-edit-mode .team-cell::after{
+    content:"✎";
+    position:absolute;
+    top:6px;
+    right:8px;
+    font-size:11px;
+    opacity:0.55;
+  }
+
+  .team-cell-tag{
+    align-self:flex-start;
+    font-size:10.5px;
+    font-weight:700;
+    padding:2px 9px;
+    border-radius:999px;
+  }
+
+  .team-cell-tag.learning{background:#F1EBDD; color:var(--gold-deep);}
+  .team-cell-tag.marketing{background:#FBEAEC; color:var(--red);}
+
+  .team-cell-name{
+    font-size:15.5px;
+    font-weight:800;
+    color:var(--ink);
+    line-height:1.35;
+  }
+
+  .team-cell-status{
+    align-self:flex-start;
+    font-size:11px;
+    font-weight:700;
+  }
+
+  .team-cell-status.empty{color:#A05050;}
+
+  .team-cell-desc{
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.55;
+  }
+
+  .team-cell-members{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:auto;
+    padding-top:4px;
+  }
+
+  .team-member-chip{
+    font-size:11px;
+    padding:3px 9px;
+    border-radius:999px;
+    background:var(--gray-bg);
+    color:var(--ink);
+    line-height:1.4;
+  }
+
+  .team-member-chip a{
+    color:var(--ink);
+    font-weight:700;
+    text-decoration:none;
+  }
+
+  .team-member-chip a:hover{
+    color:var(--red);
+    text-decoration:underline;
+  }
+
+  .team-member-chip.removable{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+  }
+
+  .team-member-chip.removable button{
+    border:none;
+    background:none;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:12px;
+    line-height:1;
+    padding:0;
+  }
+
+  .team-hint{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin:0 0 20px;
+  }
+
+  /* 編輯 modal（沿用 .edit-modal 基底，加寬給多欄位用） */
+  .team-cell-modal{
+    max-width:440px;
+    max-height:85vh;
+    overflow-y:auto;
+  }
+
+  .team-cell-modal input[type="text"]{
+    width:100%;
+    padding:9px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    font-family:inherit;
+    font-size:14px;
+    color:var(--ink);
+    margin-bottom:12px;
+  }
+
+  .team-cell-modal input[type="text"]:focus{
+    outline:none;
+    border-color:var(--red);
+    box-shadow:0 0 0 3px rgba(200,16,46,0.12);
+  }
+
+  .team-cell-modal textarea{
+    width:100%;
+    min-height:60px;
+    padding:9px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    font-family:inherit;
+    font-size:13.5px;
+    color:var(--ink);
+    resize:vertical;
+    line-height:1.5;
+    margin-bottom:12px;
+  }
+
+  .team-radio-row{
+    display:flex;
+    gap:16px;
+    margin-bottom:12px;
+    font-size:13px;
+  }
+
+  .team-radio-row label{
+    display:flex;
+    align-items:center;
+    gap:5px;
+    cursor:pointer;
+  }
+
+  .team-checklist{
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:4px 10px;
+    max-height:180px;
+    overflow-y:auto;
+    padding:10px 12px;
+    background:var(--gray-bg);
+    border-radius:8px;
+    margin-bottom:10px;
+  }
+
+  .team-checklist-item{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+
+  .team-member-freetext-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:10px;
+  }
+
+  .team-member-freetext-row input{
+    flex:1;
+    margin-bottom:0 !important;
+  }
+
+  .team-member-chip-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:6px;
+  }
+
   /* ================= responsive ================= */
 
   @media (min-width:768px){
@@ -1945,6 +2204,15 @@
     .partner-card{margin-top:56px;}
     .placeholder-page{margin-top:56px;}
     #page-about{margin-top:56px;} /* 2026-07-22：比照 partner-card/placeholder-page，讓出漢堡鈕淨空（§ 13.7 項 8） */
+    #page-team{margin-top:56px;} /* 2026-08-09：同上，team 首頁也要讓出漢堡鈕淨空 */
+
+    .team-grid{gap:7px;}
+    .team-cell{padding:10px 9px; gap:4px; border-radius:10px;}
+    .team-cell-name{font-size:12.5px;}
+    .team-cell-desc{font-size:10.5px;}
+    .team-cell-tag{font-size:9px; padding:1px 6px;}
+    .team-member-chip{font-size:9.5px; padding:2px 6px;}
+    .team-checklist{grid-template-columns:1fr;}
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -1965,6 +2233,7 @@
 <!-- 側邊欄：14 人名單 -->
 <aside class="roster-sidebar" id="roster-sidebar">
   <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count">14 人</span></div>
+  <a href="?" class="roster-about-link" id="roster-team-link" onclick="return goToTeamPage(event);">🏠 組別九宮格首頁</a>
   <a href="?page=about" class="roster-about-link" id="roster-about-link" onclick="return goToAboutPage(event);">🔗 E 組如何運作</a>
   <ul class="roster-list" id="roster-list"></ul>
 </aside>
@@ -2139,6 +2408,31 @@
   </div>
   <!-- /#page-about -->
 
+  <!-- 2026-08-09：E 組組別九宮格首頁（無 query 參數時的預設頁）。中央組名＋一句說明，外圈 8 格＝
+       學習型／行銷型席次；格子名稱／分類／狀態／說明／成員全部是資料（TEAM_GRID_DATA，見 data.js），
+       不寫死在版型裡——開會時這批內容會被密集修改。 -->
+  <div id="page-team" style="display:none;">
+
+    <div class="section-head team-page-head-row">
+      <div>
+        <h2>E 組｜組別九宮格</h2>
+        <span class="section-note">學習型（左上四格）／行銷型席次（右下四格）</span>
+      </div>
+      <button type="button" class="team-edit-toggle-btn" id="team-edit-toggle-btn" onclick="toggleTeamEditMode(!isTeamEditMode)">✏️ 編輯這頁</button>
+    </div>
+
+    <div class="team-grid" id="team-grid"></div>
+
+    <p class="team-hint">格子內容由 E 組組長現場維護，開會時可能密集修改；點成員名字可看該人完整九宮格</p>
+
+    <footer>
+      <span>E組｜房產客戶成長鏈</span>
+      <a href="?page=about" onclick="return goToAboutPage(event);">🔗 E 組如何運作</a>
+    </footer>
+
+  </div>
+  <!-- /#page-team -->
+
 </div>
 
 <!-- Lightbox -->
@@ -2196,6 +2490,48 @@
       <button class="edit-modal-btn clear" onclick="clearGuideField()">清空</button>
       <button class="edit-modal-btn" onclick="closeGuideModal()">取消</button>
       <button class="edit-modal-btn primary" onclick="saveGuideField()">存檔</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-08-09：E 組組別九宮格——格子編輯 modal（中央格只顯示名稱／說明；外圈格另含分類／狀態／成員） -->
+<div class="edit-modal-backdrop" id="team-cell-modal-backdrop" onclick="closeTeamCellModal()">
+  <div class="edit-modal team-cell-modal" onclick="event.stopPropagation()">
+    <p class="edit-modal-label" id="team-cell-modal-label">編輯格子</p>
+
+    <label class="wizard-field-label" for="team-cell-name-input">格子名稱</label>
+    <input type="text" id="team-cell-name-input" placeholder="例：不動產買賣">
+
+    <div id="team-cell-ring-fields">
+      <label class="wizard-field-label">分類</label>
+      <div class="team-radio-row">
+        <label><input type="radio" name="team-cell-category" value="learning"> 學習型</label>
+        <label><input type="radio" name="team-cell-category" value="marketing"> 行銷型</label>
+      </div>
+
+      <label class="wizard-field-label">狀態</label>
+      <div class="team-radio-row">
+        <label><input type="radio" name="team-cell-status" value="filled"> 有人</label>
+        <label><input type="radio" name="team-cell-status" value="empty"> 空席</label>
+      </div>
+    </div>
+
+    <label class="wizard-field-label" for="team-cell-desc-input">說明文字</label>
+    <textarea id="team-cell-desc-input" placeholder="這格在做什麼、誰能接"></textarea>
+
+    <div id="team-cell-members-section">
+      <label class="wizard-field-label">誰在裡面（勾選 14 人名單，或下方加自由文字）</label>
+      <div class="team-checklist" id="team-member-checklist"></div>
+      <div class="team-member-freetext-row">
+        <input type="text" id="team-cell-freetext-input" placeholder="自由文字（例：留給別人的位置、非 E 組的人名）">
+        <button type="button" class="edit-modal-btn" onclick="addTeamFreeMember()">加入</button>
+      </div>
+      <div class="team-member-chip-list" id="team-cell-free-members-list"></div>
+    </div>
+
+    <div class="edit-modal-actions">
+      <button class="edit-modal-btn" onclick="closeTeamCellModal()">取消</button>
+      <button class="edit-modal-btn primary" onclick="saveTeamCellModal()">存檔</button>
     </div>
   </div>
 </div>
@@ -2758,6 +3094,12 @@
   let isEditMode = false;
   let editTarget = null; // { kind: "self"|"theme-title"|"role", themeIdx, gridIdx, cellData }
 
+  // ================= 2026-08-09：E 組組別九宮格（首頁）狀態 =================
+  let teamState = null; // { center:{name,desc}, cells:[8] }，loadTeamState() 的結果
+  let isTeamEditMode = false;
+  let teamCellEditingIdx = null; // 'center' | 0-7（teamState.cells 的 index），null=modal 未開
+  let teamModalDraftMembers = []; // 編輯 modal 開啟期間的成員草稿，存檔時才寫回 teamState
+
   function toggleEditMode(on){
     isEditMode = on;
     document.body.classList.toggle("edit-mode", on);
@@ -2801,9 +3143,11 @@
     document.getElementById("edit-modal-backdrop").classList.remove("open");
     document.getElementById("wizard-backdrop").classList.remove("open");
     document.getElementById("guide-backdrop").classList.remove("open");
+    document.getElementById("team-cell-modal-backdrop").classList.remove("open"); // 2026-08-09
     editTarget = null;
     wizardState = null;
     guideTarget = null;
+    teamCellEditingIdx = null; // 2026-08-09
   }
 
   function openEditModal(target, labelText, currentValue){
@@ -3665,6 +4009,7 @@
   function showAboutPage(){
     document.getElementById("page-active").style.display = "none";
     document.getElementById("page-placeholder").style.display = "none";
+    document.getElementById("page-team").style.display = "none"; // 2026-08-09
     document.getElementById("page-about").style.display = "";
     currentId = null;
     document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
@@ -3767,6 +4112,7 @@
     const pageActive = document.getElementById("page-active");
     const pagePlaceholder = document.getElementById("page-placeholder");
     document.getElementById("page-about").style.display = "none"; // 從 ?page=about 點人名切回個人頁
+    document.getElementById("page-team").style.display = "none"; // 2026-08-09：從團隊首頁點成員名字切回個人頁
     const built = isBuilt(id);
 
     if(built){
@@ -3810,12 +4156,314 @@
     window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
   }
 
+  // ================= 2026-08-09：E 組組別九宮格（首頁） =================
+  // 版面 3×3：中央組名＋一句說明，外圈 8 格＝學習型／行銷型席次。
+  // cells[] 8 格對應版面（略過中央），沿用既有 RING_ORDER 排列順序：
+  // 位置 0..8（第 4 格＝中央）＝ [cells0, cells1, cells2, cells3, center, cells4, cells5, cells6, cells7]
+
+  const TEAM_STORAGE_KEY = "e-team-grid-team-state-v1";
+
+  function loadTeamState(){
+    const base = JSON.parse(JSON.stringify(TEAM_GRID_DATA)); // TEAM_GRID_DATA 來自 data.js，不改寫來源常數
+    let saved = null;
+    try{
+      saved = JSON.parse(localStorage.getItem(TEAM_STORAGE_KEY) || "null");
+    } catch(e){
+      saved = null;
+    }
+    // team 資料整份存取（不像 loadState 逐欄 merge）：一旦本機有存過的版本，整份取代 base，
+    // 因為 8 格＋成員陣列改動頻繁密集，逐欄合併容易漏掉「刪除整格」這種情境；
+    // 真相源仍是後端 Sheet（hydrateTeamFromBackend 到手後會再覆蓋一次，見下方）。
+    if(saved && saved.center && Array.isArray(saved.cells) && saved.cells.length === 8){
+      return saved;
+    }
+    return base;
+  }
+
+  function showTeamPage(){
+    document.getElementById("page-active").style.display = "none";
+    document.getElementById("page-placeholder").style.display = "none";
+    document.getElementById("page-about").style.display = "none";
+    document.getElementById("page-team").style.display = "";
+    currentId = null;
+    document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
+    teamState = loadTeamState();
+    renderTeamGrid();
+  }
+
+  function goToTeamPage(e){
+    if(e) e.preventDefault();
+    showTeamPage();
+    const url = new URL(window.location.href);
+    url.searchParams.delete("id");
+    url.searchParams.delete("page");
+    window.history.replaceState({}, "", url); // 沿用既有路由風格（selectPartner／goToAboutPage 也用 replaceState）
+    closeRoster();
+    window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
+    hydrateTeamFromBackend();
+    return false;
+  }
+
+  function renderTeamGrid(){
+    if(!teamState) return;
+    const grid = document.getElementById("team-grid");
+    grid.innerHTML = "";
+    // 'center' 之外的元素是 teamState.cells 的 index，順序對應版面左上→右上→...→右下（略過中央）
+    const positions = [0, 1, 2, 3, "center", 4, 5, 6, 7];
+
+    positions.forEach(posRef => {
+      const cell = document.createElement("div");
+
+      if(posRef === "center"){
+        const c = teamState.center;
+        cell.className = "team-cell center";
+        cell.innerHTML = `
+          <div class="team-cell-name">${escapeHtml(c.name)}</div>
+          ${c.desc ? `<div class="team-cell-desc">${escapeHtml(c.desc)}</div>` : ""}
+        `;
+        if(isTeamEditMode){
+          cell.onclick = () => openTeamCellModal("center");
+        }
+      } else {
+        const c = teamState.cells[posRef];
+        const tagLabel = c.category === "learning" ? "學習型" : "行銷型";
+        const statusHtml = c.status === "empty" ? `<span class="team-cell-status empty">空席</span>` : "";
+        const membersHtml = (c.members || []).map(m => {
+          if(m.type === "roster"){
+            const p = ROSTER.find(r => r.id === m.id);
+            const label = p ? p.name : m.id;
+            return `<span class="team-member-chip roster"><a href="?id=${m.id}" onclick="event.stopPropagation(); return navToPartner(event,'${m.id}');">${escapeHtml(label)}</a></span>`;
+          }
+          return `<span class="team-member-chip">${escapeHtml(m.text || "")}</span>`;
+        }).join("");
+
+        cell.className = "team-cell " + c.category + (c.status === "empty" ? " empty" : "");
+        cell.innerHTML = `
+          <span class="team-cell-tag ${c.category}">${tagLabel}</span>
+          <div class="team-cell-name">${escapeHtml(c.name)}</div>
+          ${statusHtml}
+          ${c.desc ? `<div class="team-cell-desc">${escapeHtml(c.desc)}</div>` : ""}
+          <div class="team-cell-members">${membersHtml}</div>
+        `;
+        if(isTeamEditMode){
+          cell.onclick = () => openTeamCellModal(posRef);
+        }
+      }
+
+      grid.appendChild(cell);
+    });
+  }
+
+  function toggleTeamEditMode(on){
+    isTeamEditMode = on;
+    document.body.classList.toggle("team-edit-mode", on);
+    const btn = document.getElementById("team-edit-toggle-btn");
+    btn.textContent = on ? "完成編輯" : "✏️ 編輯這頁";
+    btn.classList.toggle("active", on);
+    closeAllModals();
+    if(!on) hideToast();
+    renderTeamGrid();
+  }
+
+  function openTeamCellModal(posRef){
+    closeAllModals(); // 會把 teamCellEditingIdx 清成 null，所以下面這行要在它之後
+    teamCellEditingIdx = posRef;
+    const isCenter = posRef === "center";
+    const data = isCenter ? teamState.center : teamState.cells[posRef];
+
+    document.getElementById("team-cell-modal-label").textContent = isCenter ? "編輯中央格" : "編輯格子";
+    document.getElementById("team-cell-name-input").value = data.name || "";
+    document.getElementById("team-cell-desc-input").value = data.desc || "";
+    document.getElementById("team-cell-ring-fields").style.display = isCenter ? "none" : "";
+    document.getElementById("team-cell-members-section").style.display = isCenter ? "none" : "";
+
+    if(!isCenter){
+      document.querySelectorAll('input[name="team-cell-category"]').forEach(r => { r.checked = (r.value === data.category); });
+      document.querySelectorAll('input[name="team-cell-status"]').forEach(r => { r.checked = (r.value === data.status); });
+      teamModalDraftMembers = JSON.parse(JSON.stringify(data.members || []));
+      renderTeamMemberChecklist();
+    }
+
+    document.getElementById("team-cell-modal-backdrop").classList.add("open");
+    setTimeout(() => document.getElementById("team-cell-name-input").focus(), 50);
+  }
+
+  function closeTeamCellModal(){
+    document.getElementById("team-cell-modal-backdrop").classList.remove("open");
+    teamCellEditingIdx = null;
+  }
+
+  function renderTeamMemberChecklist(){
+    const wrap = document.getElementById("team-member-checklist");
+    wrap.innerHTML = "";
+    const rosterIds = new Set(teamModalDraftMembers.filter(m => m.type === "roster").map(m => m.id));
+    ROSTER.forEach(p => {
+      const label = document.createElement("label");
+      label.className = "team-checklist-item";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = rosterIds.has(p.id);
+      checkbox.onchange = () => toggleTeamRosterMember(p.id, checkbox.checked);
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(" " + p.name));
+      wrap.appendChild(label);
+    });
+    renderTeamFreeMemberChips();
+  }
+
+  function renderTeamFreeMemberChips(){
+    const freeList = document.getElementById("team-cell-free-members-list");
+    freeList.innerHTML = "";
+    let freeIdx = -1;
+    teamModalDraftMembers.forEach(m => {
+      if(m.type !== "free") return;
+      freeIdx++;
+      const idx = freeIdx; // 閉包各自持有正確的序號
+      const chip = document.createElement("span");
+      chip.className = "team-member-chip removable";
+      chip.appendChild(document.createTextNode(m.text + " "));
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "×";
+      btn.setAttribute("aria-label", "移除「" + m.text + "」");
+      btn.onclick = () => removeTeamFreeMember(idx);
+      chip.appendChild(btn);
+      freeList.appendChild(chip);
+    });
+  }
+
+  function toggleTeamRosterMember(id, checked){
+    if(checked){
+      if(!teamModalDraftMembers.some(m => m.type === "roster" && m.id === id)){
+        teamModalDraftMembers.push({ type:"roster", id });
+      }
+    } else {
+      teamModalDraftMembers = teamModalDraftMembers.filter(m => !(m.type === "roster" && m.id === id));
+    }
+  }
+
+  function addTeamFreeMember(){
+    const input = document.getElementById("team-cell-freetext-input");
+    const text = input.value.trim();
+    if(!text) return;
+    teamModalDraftMembers.push({ type:"free", text });
+    input.value = "";
+    renderTeamFreeMemberChips();
+  }
+
+  function removeTeamFreeMember(idx){
+    let seen = -1;
+    teamModalDraftMembers = teamModalDraftMembers.filter(m => {
+      if(m.type !== "free") return true;
+      seen++;
+      return seen !== idx;
+    });
+    renderTeamFreeMemberChips();
+  }
+
+  async function saveTeamCellModal(){
+    if(teamCellEditingIdx === null) return;
+    const isCenter = teamCellEditingIdx === "center";
+    const name = document.getElementById("team-cell-name-input").value.trim();
+    const desc = document.getElementById("team-cell-desc-input").value.trim();
+
+    if(!name){
+      alert("格子名稱不可空白");
+      return;
+    }
+
+    const changes = [];
+    if(isCenter){
+      const old = teamState.center;
+      changes.push({ path:"center", label:"中央格", oldValue:old.name, newValue:name });
+      teamState.center = { name, desc };
+    } else {
+      const categoryEl = document.querySelector('input[name="team-cell-category"]:checked');
+      const statusEl = document.querySelector('input[name="team-cell-status"]:checked');
+      const old = teamState.cells[teamCellEditingIdx];
+      changes.push({ path:"cells[" + teamCellEditingIdx + "]", label: old.name || ("格子" + (teamCellEditingIdx + 1)), oldValue: old.name, newValue: name });
+      teamState.cells[teamCellEditingIdx] = {
+        name,
+        category: categoryEl ? categoryEl.value : old.category,
+        status: statusEl ? statusEl.value : old.status,
+        desc,
+        members: teamModalDraftMembers
+      };
+    }
+
+    const ok = await persistTeamState(changes);
+    if(!ok) return; // 存檔失敗：modal 保留開啟，toast 已顯示重試按鈕，內容不遺失
+
+    closeTeamCellModal();
+    renderTeamGrid();
+  }
+
+  // 存檔核心：doPost 成功才算數（PRD § 12.1「存檔策略」，沿用個人頁 persistState 同一套模式）。
+  // team 資料整份 { center, cells } 存取，id 固定 "team"。
+  async function persistTeamState(changes){
+    if(!BACKEND_ENABLED){
+      localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(teamState));
+      return true;
+    }
+
+    showToast("存檔中…", false);
+    try{
+      await postToBackend({
+        id: "team",
+        name: teamState.center.name,
+        changes: changes || [],
+        data: teamState
+      });
+      localStorage.setItem(TEAM_STORAGE_KEY, JSON.stringify(teamState));
+      showToast("已存檔", false);
+      return true;
+    } catch(err){
+      console.warn("[persistTeamState] 後端存檔失敗：", err.message);
+      showToast("存檔失敗：" + err.message + "（請重試，內容還在畫面上不會遺失）", true, () => persistTeamState(changes).then(ok => {
+        if(ok) hideToast();
+      }));
+      return false;
+    }
+  }
+
+  // 冷啟 hydrate：TEAM_GRID_DATA（data.js 內嵌預設值）已先渲染在畫面上，這裡打後端拿最新資料靜默覆蓋。
+  // ★ 自癒設計：若 Sheet 尚無 id="team" 這一列（GAS 部署後、任何人第一次載入這頁時），
+  //   用內嵌預設資料自動 doPost 建立這一列，不需要人工另外跑初始化腳本（doPost 的「id 不存在時自動新增列」
+  //   邏輯，見 backend/Code.gs 2026-08-09 異動）。編輯中（isTeamEditMode）不覆蓋，避免打斷正在編輯的人。
+  async function hydrateTeamFromBackend(){
+    if(!BACKEND_ENABLED) return;
+    try{
+      const all = await fetchAllFromBackend();
+      if(!all) return;
+      const teamRow = all["team"];
+      if(teamRow && teamRow.center && Array.isArray(teamRow.cells)){
+        if(!isTeamEditMode){
+          teamState = { center: teamRow.center, cells: teamRow.cells };
+          if(document.getElementById("page-team").style.display !== "none"){
+            renderTeamGrid();
+          }
+        }
+      } else {
+        await postToBackend({
+          id: "team",
+          name: TEAM_GRID_DATA.center.name,
+          changes: [{ path:"team", label:"組別九宮格初始化", oldValue:"", newValue:"自動建立初始資料" }],
+          data: TEAM_GRID_DATA
+        });
+        console.info("[hydrateTeamFromBackend] Sheet 尚無 id=team 列，已用內嵌預設資料自動建立");
+      }
+    } catch(err){
+      console.warn("[hydrateTeamFromBackend] 團隊九宮格後端資料處理失敗，維持內嵌預設資料：", err.message);
+    }
+  }
+
   // ===== 已退出 E 組夥伴：友善提示頁（重用佔位頁樣式，不 fallback、不 404）=====
   function showDepartedNotice(id){
     const departed = DEPARTED_ROSTER[id];
     if(!departed) return;
 
     document.getElementById("page-active").style.display = "none";
+    document.getElementById("page-team").style.display = "none"; // 2026-08-09
     document.getElementById("page-placeholder").style.display = "";
     currentId = null;
 
@@ -3885,6 +4533,9 @@
   // ===== 初始化：讀 URL ?id=NNN 決定初始顯示誰 =====
   // 三種情況：現役名單 → 正常開該人；已退出名單（DEPARTED_ROSTER）→ 友善提示，不 fallback 不 404；
   // 其餘無效/未帶參數 → 預設 007
+  // ===== 初始化：讀 URL 決定初始顯示什麼 =====
+  // 四種情況：?page=about → 說明頁；?id=已退出名單 → 友善提示；?id=現役名單 → 該人個人頁；
+  // 完全不帶參數（2026-08-09 起改變的行為）→ 首頁改顯示「E 組組別九宮格」，不再預設 007。
   function initApp(){
     const url = new URL(window.location.href);
     const requestedId = url.searchParams.get("id");
@@ -3902,6 +4553,14 @@
 
     if(requestedId && Object.prototype.hasOwnProperty.call(DEPARTED_ROSTER, requestedId)){
       showDepartedNotice(requestedId);
+      return;
+    }
+
+    if(!requestedId){
+      // 2026-08-09：首頁（無 ?id、無 ?page）改為 E 組組別九宮格，取代原本預設開 007 的行為。
+      // 個人頁連結（?id=NNN，含已發給夥伴的專屬連結）不受影響，帶 id 一律照舊開該人頁面。
+      showTeamPage();
+      hydrateTeamFromBackend();
       return;
     }
 
