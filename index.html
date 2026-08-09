@@ -18,7 +18,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<!-- 個資聚合頁（14 人真名＋自行維護資料），比照姊妹站先例不被搜尋引擎索引 -->
+<!-- 個資聚合頁（15 人真名＋自行維護資料），比照姊妹站先例不被搜尋引擎索引 -->
 <meta name="robots" content="noindex">
 <!-- v4.1fix2：GitHub Pages index.html 本身帶 Cache-Control: max-age=600（無法自訂 headers），
      這幾個 meta 是瀏覽器層防快取提示上限；根本解仍是 GAS 部署鐵律裡的 cache-busting query string，
@@ -27,7 +27,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>E組九宮格｜房產客戶成長鏈</title>
-<script src="data.js?v=20260809teamgrid"></script>
+<script src="data.js?v=20260809add015"></script>
 <style>
   :root{
     --white:#FFFFFF;
@@ -2230,9 +2230,9 @@
 <!-- 遮罩（手機抽屜用） -->
 <div class="roster-backdrop" id="roster-backdrop" onclick="closeRoster()"></div>
 
-<!-- 側邊欄：14 人名單 -->
+<!-- 側邊欄：15 人名單 -->
 <aside class="roster-sidebar" id="roster-sidebar">
-  <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count">14 人</span></div>
+  <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count">15 人</span></div>
   <a href="?" class="roster-about-link" id="roster-team-link" onclick="return goToTeamPage(event);">🏠 組別九宮格首頁</a>
   <a href="?page=about" class="roster-about-link" id="roster-about-link" onclick="return goToAboutPage(event);">🔗 E 組如何運作</a>
   <ul class="roster-list" id="roster-list"></ul>
@@ -2402,7 +2402,7 @@
     <div class="gap-grid" id="gap-l2-grid"></div>
 
     <footer>
-      <span id="about-provenance">本頁連動關係由 14 位夥伴自行維護的九宮格資料即時計算生成</span>
+      <span id="about-provenance">本頁連動關係由 15 位夥伴自行維護的九宮格資料即時計算生成</span>
     </footer>
 
   </div>
@@ -2520,7 +2520,7 @@
     <textarea id="team-cell-desc-input" placeholder="這格在做什麼、誰能接"></textarea>
 
     <div id="team-cell-members-section">
-      <label class="wizard-field-label">誰在裡面（勾選 14 人名單，或下方加自由文字）</label>
+      <label class="wizard-field-label">誰在裡面（勾選 15 人名單，或下方加自由文字）</label>
       <div class="team-checklist" id="team-member-checklist"></div>
       <div class="team-member-freetext-row">
         <input type="text" id="team-cell-freetext-input" placeholder="自由文字（例：留給別人的位置、非 E 組的人名）">
@@ -3420,9 +3420,9 @@
     document.getElementById("tab-panel-photo").hidden = isGrid;
   }
 
-  // ===== 14 人名單（逐字取自 [[_E組總表]]，2026-07-06 更新）=====
+  // ===== 15 人名單（逐字取自 [[_E組總表]]，2026-08-09 更新：加入 015 莊涵勝）=====
   // built 不寫死：id 是否在 PEOPLE_DATA（data.js）裡有資料，動態決定灰階/完整頁
-  // 3 位未交件：028 林佩君、030 李慧如 Eva、055 吳念鎧（data.js 沒有他們的 key）
+  // 2 位未交件（空殼 entry，本人可從零填）：015 莊涵勝、028 林佩君（030/055 已於 07-06／07-21 補交滿格）
   // 2026-07-03：017 諸紀平、054 陳品攸退出 E 組，自名單移除（資料檔與原圖不刪，見 DEPARTED_ROSTER）
   // 2026-07-06：052 張怡蘋轉出 E 組（原兼 A 組，轉往他組專職），自名單移除，dualTeam 標記一併清除
   // dualTeam：同時參加其他 Power Team 的兼組標記，依 2026-06-12 分組名單核對（現餘 7 位）
@@ -3430,6 +3430,7 @@
     { id:"003", name:"劉羿岑", en:"", role:"節能減碳", dualTeam:"D組・商用不動產升級鏈" },
     { id:"005", name:"劉恩秀", en:"Joan", role:"人力派遣" },
     { id:"007", name:"張瓊安", en:"", role:"仲介經紀人", leader:true },
+    { id:"015", name:"莊涵勝", en:"", role:"仲介經紀人（台北信義）" },
     { id:"023", name:"林必涵", en:"", role:"廠房資產管理", dualTeam:"A組・地主改建整合鏈" },
     { id:"025", name:"王佳筠", en:"", role:"建案代銷", dualTeam:"A組・地主改建整合鏈" },
     { id:"026", name:"楊之慧", en:"", role:"金融後台交割", dualTeam:"A組・地主改建整合鏈" },
@@ -3910,7 +3911,7 @@
       return false;
     }
 
-    // 掃描 14 人的 roles[]，找組內完全無人命中的角色詞（沿用連動引擎的空格／⚠ 過濾規則）
+    // 掃描 15 人的 roles[]，找組內完全無人命中的角色詞（沿用連動引擎的空格／⚠ 過濾規則）
     const clusters = new Map(); // label -> Set(person id)
     ids.forEach(a => {
       (PEOPLE_DATA[a].themes || []).forEach(t => {
@@ -3987,8 +3988,8 @@
     const el = document.getElementById("about-provenance");
     if(!el) return;
     el.textContent = latestUpdatedAt
-      ? `本頁連動關係由 14 位夥伴自行維護的九宮格資料即時計算生成・資料更新於 ${latestUpdatedAt}`
-      : "本頁連動關係由 14 位夥伴自行維護的九宮格資料即時計算生成・即時生成";
+      ? `本頁連動關係由 15 位夥伴自行維護的九宮格資料即時計算生成・資料更新於 ${latestUpdatedAt}`
+      : "本頁連動關係由 15 位夥伴自行維護的九宮格資料即時計算生成・即時生成";
   }
 
   // 點連動小卡／對接表裡的人名 → 走既有 selectPartner()（單頁路由），不整頁重載
