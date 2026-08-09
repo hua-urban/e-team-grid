@@ -67,7 +67,6 @@ const PEOPLE_DATA = {
   "007": {
     self: { name:"張瓊安", en:"", role:"仲介經紀人", area:"三重・蘆洲・新莊" },
     photo: "images/007.jpg",
-    leader: true,
     themes: [
       { service:"室內設計｜老宅翻修", ta:"精準控制預算的屋主",
         roles:["結構技師","拆除工班","水電工班","木作工班","油漆/壁紙","系統櫃廠商","修繕貸款銀行","估價師"] },
@@ -296,6 +295,7 @@ const PEOPLE_DATA = {
   "043": {
     self: { name:"洪嘉璿", en:"左左", role:"MMT 天賦諮詢師", area:"禾嘉管顧團隊" },
     photo: "images/043.jpg",
+    leader: true,
     themes: [
       { service:"社群經營（FB台中租屋社團）", ta:"", note:"待本人補",
         roles:["房仲","搬家公司","找店面","包租","一般房東","居家清潔","家電廠商","找廠房的人"] },
