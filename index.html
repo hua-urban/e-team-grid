@@ -2409,14 +2409,14 @@
   <!-- /#page-about -->
 
   <!-- 2026-08-09：E 組組別九宮格首頁（無 query 參數時的預設頁）。中央組名＋一句說明，外圈 8 格＝
-       學習型／行銷型席次；格子名稱／分類／狀態／說明／成員全部是資料（TEAM_GRID_DATA，見 data.js），
+       學習型／營銷型席次；格子名稱／分類／狀態／說明／成員全部是資料（TEAM_GRID_DATA，見 data.js），
        不寫死在版型裡——開會時這批內容會被密集修改。 -->
   <div id="page-team" style="display:none;">
 
     <div class="section-head team-page-head-row">
       <div>
         <h2>E 組｜組別九宮格</h2>
-        <span class="section-note">學習型（左上四格）／行銷型席次（右下四格）</span>
+        <span class="section-note">學習型（左上四格）／營銷型席次（右下四格）</span>
       </div>
       <button type="button" class="team-edit-toggle-btn" id="team-edit-toggle-btn" onclick="toggleTeamEditMode(!isTeamEditMode)">✏️ 編輯這頁</button>
     </div>
@@ -2506,7 +2506,7 @@
       <label class="wizard-field-label">分類</label>
       <div class="team-radio-row">
         <label><input type="radio" name="team-cell-category" value="learning"> 學習型</label>
-        <label><input type="radio" name="team-cell-category" value="marketing"> 行銷型</label>
+        <label><input type="radio" name="team-cell-category" value="marketing"> 營銷型</label>
       </div>
 
       <label class="wizard-field-label">狀態</label>
@@ -4158,7 +4158,7 @@
   }
 
   // ================= 2026-08-09：E 組組別九宮格（首頁） =================
-  // 版面 3×3：中央組名＋一句說明，外圈 8 格＝學習型／行銷型席次。
+  // 版面 3×3：中央組名＋一句說明，外圈 8 格＝學習型／營銷型席次。
   // cells[] 8 格對應版面（略過中央），沿用既有 RING_ORDER 排列順序：
   // 位置 0..8（第 4 格＝中央）＝ [cells0, cells1, cells2, cells3, center, cells4, cells5, cells6, cells7]
 
@@ -4227,7 +4227,7 @@
         }
       } else {
         const c = teamState.cells[posRef];
-        const tagLabel = c.category === "learning" ? "學習型" : "行銷型";
+        const tagLabel = c.category === "learning" ? "學習型" : "營銷型";
         const statusHtml = c.status === "empty" ? `<span class="team-cell-status empty">空席</span>` : "";
         const membersHtml = (c.members || []).map(m => {
           if(m.type === "roster"){
