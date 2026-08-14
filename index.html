@@ -1816,6 +1816,30 @@
   .about-collab-common a{color:var(--gold-deep); text-decoration:none; font-weight:700;}
   .about-collab-common a:hover{text-decoration:underline;}
 
+  /* 2026-08-14：專講排程表狀態 badge（沿用既有 dashed=待補／gold=已確認 視覺語彙，見 cell-ta.empty／partner-dualteam-badge） */
+  .schedule-status{
+    display:inline-block;
+    padding:3px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .schedule-status.done{
+    background:var(--gray-bg);
+    color:var(--ink-soft);
+  }
+  .schedule-status.confirmed{
+    background:rgba(200,160,79,0.16);
+    border:1px solid rgba(200,160,79,0.55);
+    color:var(--gold-deep);
+  }
+  .schedule-status.pending{
+    background:transparent;
+    border:1px dashed #CBC6BD;
+    color:#9a9a9a;
+  }
+
   /* 2026-07-21：「這條鏈還缺誰」缺口區塊 */
   .gap-subhead{
     font-size:15px;
@@ -2205,6 +2229,7 @@
     .placeholder-page{margin-top:56px;}
     #page-about{margin-top:56px;} /* 2026-07-22：比照 partner-card/placeholder-page，讓出漢堡鈕淨空（§ 13.7 項 8） */
     #page-team{margin-top:56px;} /* 2026-08-09：同上，team 首頁也要讓出漢堡鈕淨空 */
+    #page-schedule{margin-top:56px;} /* 2026-08-14：同上 */
 
     .team-grid{gap:7px;}
     .team-cell{padding:10px 9px; gap:4px; border-radius:10px;}
@@ -2235,6 +2260,7 @@
   <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count">15 人</span></div>
   <a href="?" class="roster-about-link" id="roster-team-link" onclick="return goToTeamPage(event);">🏠 組別九宮格首頁</a>
   <a href="?page=about" class="roster-about-link" id="roster-about-link" onclick="return goToAboutPage(event);">🔗 E 組如何運作</a>
+  <a href="?page=schedule" class="roster-about-link" id="roster-schedule-link" onclick="return goToSchedulePage(event);">📅 專講排程表</a>
   <ul class="roster-list" id="roster-list"></ul>
 </aside>
 
@@ -2432,6 +2458,36 @@
 
   </div>
   <!-- /#page-team -->
+
+  <!-- 2026-08-14：15 分鐘專講排程表（?page=schedule）。純靜態內容，不接 Google Sheet／GAS，
+       資料源 data.js SCHEDULE_DATA；講者姓名從 ROSTER 依編號查，不重複存。 -->
+  <div id="page-schedule" style="display:none;">
+
+    <div class="section-head">
+      <h2>📅 15 分鐘專講排程表</h2>
+      <span class="section-note">每月第一、三個禮拜二</span>
+    </div>
+
+    <div class="about-warning-banner">
+      聚會時段：每月第一、三個禮拜二。排序規則：抽籤，不照會員編號。09-01～03-02 這 13 人的順序是 AI 模擬排列，用來規劃時程參考，不是實際抽籤結果——真正順序仍要在每次組聚現場抽。
+    </div>
+
+    <div class="about-table-wrap">
+      <table class="about-collab-table">
+        <thead>
+          <tr><th>日期</th><th>編號</th><th>講者</th><th>狀態</th></tr>
+        </thead>
+        <tbody id="schedule-tbody"></tbody>
+      </table>
+    </div>
+
+    <footer>
+      <span>E組｜房產客戶成長鏈</span>
+      <a href="?" onclick="return goToTeamPage(event);">🏠 回組別九宮格首頁</a>
+    </footer>
+
+  </div>
+  <!-- /#page-schedule -->
 
 </div>
 
@@ -4011,6 +4067,7 @@
     document.getElementById("page-active").style.display = "none";
     document.getElementById("page-placeholder").style.display = "none";
     document.getElementById("page-team").style.display = "none"; // 2026-08-09
+    document.getElementById("page-schedule").style.display = "none"; // 2026-08-14
     document.getElementById("page-about").style.display = "";
     currentId = null;
     document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
@@ -4114,6 +4171,7 @@
     const pagePlaceholder = document.getElementById("page-placeholder");
     document.getElementById("page-about").style.display = "none"; // 從 ?page=about 點人名切回個人頁
     document.getElementById("page-team").style.display = "none"; // 2026-08-09：從團隊首頁點成員名字切回個人頁
+    document.getElementById("page-schedule").style.display = "none"; // 2026-08-14：從排程表點人名切回個人頁
     const built = isBuilt(id);
 
     if(built){
@@ -4185,6 +4243,7 @@
     document.getElementById("page-active").style.display = "none";
     document.getElementById("page-placeholder").style.display = "none";
     document.getElementById("page-about").style.display = "none";
+    document.getElementById("page-schedule").style.display = "none"; // 2026-08-14
     document.getElementById("page-team").style.display = "";
     currentId = null;
     document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
@@ -4202,6 +4261,50 @@
     closeRoster();
     window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
     hydrateTeamFromBackend();
+    return false;
+  }
+
+  // ================= 2026-08-14：15 分鐘專講排程表（?page=schedule） =================
+  // 純靜態頁，資料源 data.js SCHEDULE_DATA，不打 GAS／不 hydrate。
+  const SCHEDULE_STATUS_LABEL = { done:"已完成", confirmed:"已排定", pending:"待抽籤確認" };
+
+  function renderSchedulePage(){
+    const tbody = document.getElementById("schedule-tbody");
+    if(!tbody || typeof SCHEDULE_DATA === "undefined") return;
+    tbody.innerHTML = SCHEDULE_DATA.map(row => {
+      const partner = ROSTER.find(p => p.id === row.id);
+      const name = partner ? (partner.en ? `${partner.name} ${partner.en}` : partner.name) : row.id;
+      const label = SCHEDULE_STATUS_LABEL[row.status] || row.status;
+      const link = `<a href="?id=${row.id}" onclick="return navToPartner(event,'${row.id}')">`;
+      return `<tr>
+        <td>${escapeHtml(row.date)}</td>
+        <td>${link}${escapeHtml(row.id)}</a></td>
+        <td>${link}${escapeHtml(name)}</a></td>
+        <td><span class="schedule-status ${row.status}">${escapeHtml(label)}</span></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function showSchedulePage(){
+    document.getElementById("page-active").style.display = "none";
+    document.getElementById("page-placeholder").style.display = "none";
+    document.getElementById("page-about").style.display = "none";
+    document.getElementById("page-team").style.display = "none";
+    document.getElementById("page-schedule").style.display = "";
+    currentId = null;
+    document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
+    renderSchedulePage();
+  }
+
+  function goToSchedulePage(e){
+    if(e) e.preventDefault();
+    showSchedulePage();
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", "schedule");
+    url.searchParams.delete("id");
+    window.history.replaceState({}, "", url); // 沿用既有路由風格（goToAboutPage／goToTeamPage 也用 replaceState）
+    closeRoster();
+    window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
     return false;
   }
 
@@ -4465,6 +4568,8 @@
 
     document.getElementById("page-active").style.display = "none";
     document.getElementById("page-team").style.display = "none"; // 2026-08-09
+    document.getElementById("page-about").style.display = "none";
+    document.getElementById("page-schedule").style.display = "none"; // 2026-08-14
     document.getElementById("page-placeholder").style.display = "";
     currentId = null;
 
@@ -4549,6 +4654,11 @@
     if(requestedPage === "about"){
       showAboutPage();
       hydrateFromBackend();
+      return;
+    }
+
+    if(requestedPage === "schedule"){
+      showSchedulePage();
       return;
     }
 

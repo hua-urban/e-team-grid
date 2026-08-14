@@ -512,3 +512,28 @@ const TEAM_GRID_DATA = {
     }
   ]
 };
+
+// ============================================================
+// E 組 15 分鐘專講排程表（首頁，2026-08-14 新增，?page=schedule）
+// 純靜態內容（不接 Google Sheet／GAS）：date/id/status 三欄；
+// 講者姓名不重複存，render 時一律從 ROSTER（index.html）依 id 查名字，避免跟名冊資料撕裂。
+// status 值：done（已完成）／confirmed（已排定）／pending（待抽籤確認）
+// 免責聲明（聚會時段、排序規則、09-01～03-02 為 AI 模擬排列非實際抽籤結果）固定文字，寫在 index.html #page-schedule 區塊。
+// ============================================================
+const SCHEDULE_DATA = [
+  { date:"2026-08-04", id:"007", status:"done" },
+  { date:"2026-08-18", id:"003", status:"confirmed" },
+  { date:"2026-09-01", id:"043", status:"pending" },
+  { date:"2026-09-15", id:"047", status:"pending" },
+  { date:"2026-10-06", id:"015", status:"pending" },
+  { date:"2026-10-20", id:"050", status:"pending" },
+  { date:"2026-11-03", id:"005", status:"pending" },
+  { date:"2026-11-17", id:"033", status:"pending" },
+  { date:"2026-12-01", id:"031", status:"pending" },
+  { date:"2026-12-15", id:"026", status:"pending" },
+  { date:"2027-01-05", id:"055", status:"pending" },
+  { date:"2027-01-19", id:"028", status:"pending" },
+  { date:"2027-02-02", id:"023", status:"pending" },
+  { date:"2027-02-16", id:"030", status:"pending" },
+  { date:"2027-03-02", id:"025", status:"pending" }
+];
