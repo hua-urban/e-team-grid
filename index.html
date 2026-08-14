@@ -1968,6 +1968,23 @@
     margin:6px 0 20px;
   }
 
+  /* 2026-08-14：排程表草稿模式──編輯中的「取消／儲存」控制列＋未儲存變更提示。
+     不打後端的操作全部先進草稿，按下「儲存」才寫 Google Sheet，見 index.html 內
+     startScheduleEdit／cancelScheduleEdit／saveScheduleEdit。 */
+  .schedule-edit-controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .schedule-dirty-badge{
+    font-size:12px;
+    font-weight:700;
+    color:var(--red-deep);
+    white-space:nowrap;
+  }
+
   /* 2026-07-21：「這條鏈還缺誰」缺口區塊 */
   .gap-subhead{
     font-size:15px;
@@ -2604,7 +2621,7 @@
         <h2>📅 15 分鐘專講排程表</h2>
         <span class="section-note">每月第一、三個禮拜二</span>
       </div>
-      <button type="button" class="team-edit-toggle-btn" id="schedule-edit-toggle-btn" onclick="toggleScheduleEditMode(!isScheduleEditMode)">✏️ 編輯這頁</button>
+      <div class="schedule-edit-controls" id="schedule-edit-controls"></div>
     </div>
 
     <div class="about-warning-banner">
@@ -4210,6 +4227,7 @@
 
   function goToAboutPage(e){
     if(e) e.preventDefault();
+    if(!scheduleGuardNavigateAway()) return false; // 排程表編輯中有未存變更時先確認
     showAboutPage();
     const url = new URL(window.location.href);
     url.searchParams.set("page", "about");
@@ -4300,6 +4318,7 @@
   function selectPartner(id){
     const partner = ROSTER.find(p => p.id === id);
     if(!partner) return;
+    if(!scheduleGuardNavigateAway()) return; // 排程表編輯中有未存變更時先確認（含點排程表列上的講者名字）
 
     const pageActive = document.getElementById("page-active");
     const pagePlaceholder = document.getElementById("page-placeholder");
@@ -4387,6 +4406,7 @@
 
   function goToTeamPage(e){
     if(e) e.preventDefault();
+    if(!scheduleGuardNavigateAway()) return false; // 排程表編輯中有未存變更時先確認
     showTeamPage();
     const url = new URL(window.location.href);
     url.searchParams.delete("id");
@@ -4411,6 +4431,12 @@
 
   let scheduleOrder = null; // string[]，講者編號依序；真相源＝後端 Sheet id="schedule"
   let isScheduleEditMode = false;
+  // 2026-08-14：草稿模式（見下方 startScheduleEdit／cancelScheduleEdit／saveScheduleEdit）。
+  // 編輯中所有調整（上下移／換人／新增／移除）只改 scheduleOrder 這個記憶體變數並重繪，不打後端、
+  // 不寫 localStorage 正式鍵；scheduleDraftSnapshot 存進編輯模式那一刻的原始順序，供「取消」還原，
+  // scheduleDraftChanges 累積這次編輯階段的異動明細，按「儲存」才整批送 GAS（給 Telegram 通知用）。
+  let scheduleDraftSnapshot = null; // string[] | null，只在編輯模式中有值
+  let scheduleDraftChanges = []; // {path,label,oldValue,newValue}[]
 
   // 某年某月的「第一、三個禮拜二」，回傳兩個 Date（一定同月：第一個落在 1–7 號，+14 天落在 15–21 號）
   function scheduleFirstAndThirdTuesdays(year, month){
@@ -4478,6 +4504,7 @@
 
   function goToSchedulePage(e){
     if(e) e.preventDefault();
+    if(!scheduleGuardNavigateAway()) return false; // 已經在編輯中又點一次排程表連結，同樣先確認再重載
     showSchedulePage();
     const url = new URL(window.location.href);
     url.searchParams.set("page", "schedule");
@@ -4537,6 +4564,24 @@
     }).join("");
 
     renderScheduleAddRow();
+    renderScheduleEditControls();
+  }
+
+  // 編輯這頁／取消／儲存 控制列（草稿模式，2026-08-14）。非編輯中只有一顆「編輯這頁」；
+  // 編輯中換成「取消」「儲存」，有未存變更時多顯示提示字樣。
+  function renderScheduleEditControls(){
+    const wrap = document.getElementById("schedule-edit-controls");
+    if(!wrap) return;
+    if(!isScheduleEditMode){
+      wrap.innerHTML = `<button type="button" class="team-edit-toggle-btn" id="schedule-edit-toggle-btn" onclick="startScheduleEdit()">✏️ 編輯這頁</button>`;
+      return;
+    }
+    const dirty = scheduleDraftChanges.length > 0;
+    wrap.innerHTML = `
+      ${dirty ? `<span class="schedule-dirty-badge">● 有未儲存的變更</span>` : ""}
+      <button type="button" class="edit-modal-btn" onclick="cancelScheduleEdit()">取消</button>
+      <button type="button" class="edit-modal-btn primary" onclick="saveScheduleEdit()">💾 儲存</button>
+    `;
   }
 
   // 「換講者」下拉選項：現役名單中尚未排入的人 ＋ 目前這格的人本身（讓 select 一定有合法初始值）
@@ -4575,13 +4620,53 @@
     `;
   }
 
-  function toggleScheduleEditMode(on){
-    isScheduleEditMode = on;
-    const btn = document.getElementById("schedule-edit-toggle-btn");
-    btn.textContent = on ? "完成編輯" : "✏️ 編輯這頁";
-    btn.classList.toggle("active", on);
-    if(!on) hideToast();
+  // 進入編輯模式：拍一張目前順序的快照（供「取消」還原），草稿異動清單歸零。
+  // 編輯中的所有調整都直接改 scheduleOrder 本身（跟改動前寫法一致，差別只在不再逐次打後端）。
+  function startScheduleEdit(){
+    if(!scheduleOrder) return;
+    isScheduleEditMode = true;
+    scheduleDraftSnapshot = scheduleOrder.slice();
+    scheduleDraftChanges = [];
     renderScheduleList();
+  }
+
+  // 捨棄草稿：scheduleOrder 還原成進入編輯模式那一刻的快照，不碰後端、不寫 localStorage。
+  function discardScheduleDraft(){
+    if(scheduleDraftSnapshot) scheduleOrder = scheduleDraftSnapshot.slice();
+    scheduleDraftSnapshot = null;
+    scheduleDraftChanges = [];
+    isScheduleEditMode = false;
+  }
+
+  function cancelScheduleEdit(){
+    if(scheduleDraftChanges.length > 0 && !window.confirm("這次編輯還有未儲存的變更，取消後會全部捨棄，確定要取消嗎？")) return;
+    discardScheduleDraft();
+    hideToast();
+    renderScheduleList();
+  }
+
+  // 儲存：這時才呼叫 persistScheduleState 把整份 scheduleOrder 連同這次編輯階段累積的
+  // scheduleDraftChanges 一次送 GAS；失敗＝草稿與編輯模式都保留（persistScheduleState 的
+  // 重試按鈕會重新呼叫本函式，不會遺漏失敗後又做的新異動）。
+  async function saveScheduleEdit(){
+    if(!isScheduleEditMode || !scheduleOrder) return;
+    const ok = await persistScheduleState(scheduleDraftChanges);
+    if(!ok) return;
+    scheduleDraftSnapshot = null;
+    scheduleDraftChanges = [];
+    isScheduleEditMode = false;
+    renderScheduleList();
+  }
+
+  // 站內換頁前的守門：有未儲存變更時跳確認，選擇留下就擋掉這次換頁；沒有未存變更、
+  // 但仍在編輯模式中（例如剛按「編輯這頁」還沒動任何一格）則靜默結束編輯模式再放行，
+  // 避免離開後編輯模式的殘留狀態卡住下次回來的畫面。瀏覽器分頁切換／關視窗走下方 beforeunload，不經過這支。
+  function scheduleGuardNavigateAway(){
+    if(isScheduleEditMode && scheduleDraftChanges.length > 0){
+      if(!window.confirm("排程表還有未儲存的變更，離開這頁會捨棄，確定要離開嗎？")) return false;
+    }
+    if(isScheduleEditMode) discardScheduleDraft();
+    return true;
   }
 
   function moveScheduleEntry(idx, delta){
@@ -4592,8 +4677,8 @@
     const tmp = scheduleOrder[idx];
     scheduleOrder[idx] = scheduleOrder[newIdx];
     scheduleOrder[newIdx] = tmp;
+    scheduleDraftChanges.push({ path:"order", label:"調整排程順序", oldValue:"", newValue: scheduleOrder.join(",") });
     renderScheduleList();
-    persistScheduleState([{ path:"order", label:"調整排程順序", oldValue:"", newValue: scheduleOrder.join(",") }]);
   }
 
   function removeScheduleEntry(idx){
@@ -4604,8 +4689,8 @@
     const label = partner ? partner.name : id;
     if(!window.confirm(`確定要移除「${label}」這一場嗎？`)) return;
     scheduleOrder.splice(idx, 1);
+    scheduleDraftChanges.push({ path:"order", label:"移除場次", oldValue:label, newValue:"（已移除）" });
     renderScheduleList();
-    persistScheduleState([{ path:"order", label:"移除場次", oldValue:label, newValue:"（已移除）" }]);
   }
 
   function swapScheduleEntry(idx, newId){
@@ -4621,8 +4706,8 @@
     scheduleOrder[idx] = newId;
     const oldPartner = ROSTER.find(p => p.id === oldId);
     const newPartner = ROSTER.find(p => p.id === newId);
+    scheduleDraftChanges.push({ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : oldId, newValue: newPartner ? newPartner.name : newId });
     renderScheduleList();
-    persistScheduleState([{ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : oldId, newValue: newPartner ? newPartner.name : newId }]);
   }
 
   function addScheduleEntry(){
@@ -4631,13 +4716,13 @@
     const id = select.value;
     if(scheduleOrder.includes(id)) return; // 防禦，select 選項理論上已排除已在佇列的人
     scheduleOrder.push(id);
-    renderScheduleList();
     const partner = ROSTER.find(p => p.id === id);
-    persistScheduleState([{ path:"order", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id }]);
+    scheduleDraftChanges.push({ path:"order", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id });
+    renderScheduleList();
   }
 
   // 存檔核心：doPost 成功才算數，跟 persistState／persistTeamState 同一套模式。
-  // schedule 資料整份 { order:[...] } 存取，id 固定 "schedule"。
+  // schedule 資料整份 { order:[...] } 存取，id 固定 "schedule"。只有 saveScheduleEdit() 會呼叫這支。
   async function persistScheduleState(changes){
     if(!BACKEND_ENABLED){
       localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify({ order: scheduleOrder }));
@@ -4657,9 +4742,9 @@
       return true;
     } catch(err){
       console.warn("[persistScheduleState] 後端存檔失敗：", err.message);
-      showToast("存檔失敗：" + err.message + "（請重試，內容還在畫面上不會遺失）", true, () => persistScheduleState(changes).then(ok => {
-        if(ok) hideToast();
-      }));
+      // 重試按鈕重新呼叫 saveScheduleEdit()（不是重播這次的 changes closure），這樣使用者若在
+      // 失敗後又多做了幾個異動，重試會帶到最新草稿，不會遺漏。
+      showToast("存檔失敗：" + err.message + "（請重試，內容還在畫面上不會遺失）", true, () => saveScheduleEdit());
       return false;
     }
   }
@@ -4693,6 +4778,15 @@
       console.warn("[hydrateScheduleFromBackend] 排程表後端資料處理失敗，維持內嵌預設資料：", err.message);
     }
   }
+
+  // 排程表編輯中有未儲存變更時，切分頁／關視窗跳瀏覽器原生確認提示（文字內容瀏覽器不採用，只認有沒有 preventDefault）。
+  // 站內換頁（點側欄／頁尾連結）走的是 scheduleGuardNavigateAway()，不經過這裡。
+  window.addEventListener("beforeunload", function(e){
+    if(isScheduleEditMode && scheduleDraftChanges.length > 0){
+      e.preventDefault();
+      e.returnValue = "";
+    }
+  });
 
   function renderTeamGrid(){
     if(!teamState) return;
