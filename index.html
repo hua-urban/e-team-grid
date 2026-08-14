@@ -1965,8 +1965,37 @@
   .schedule-add-empty{
     font-size:12.5px;
     color:var(--ink-soft);
-    margin:6px 0 20px;
+    margin:0;
   }
+
+  .schedule-add-new-btn{
+    white-space:nowrap;
+  }
+
+  /* 2026-08-14：排程頁「新增一位夥伴」──名冊上還沒有的新組員，組長自己建檔不必改 code／push。
+     沿用 .edit-modal 基底＋ .team-cell-modal 的 input[type=text] 視覺語彙，不另外發明設計語言。 */
+  .schedule-new-member-modal input[type="text"]{
+    width:100%;
+    padding:9px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    font-family:inherit;
+    font-size:14px;
+    color:var(--ink);
+    margin-bottom:12px;
+  }
+  .schedule-new-member-modal input[type="text"]:focus{
+    outline:none;
+    border-color:var(--red);
+    box-shadow:0 0 0 3px rgba(200,16,46,0.12);
+  }
+  .schedule-new-member-error{
+    font-size:12.5px;
+    color:var(--red-deep);
+    margin:-4px 0 12px;
+    min-height:1em;
+  }
+  .schedule-new-member-error:empty{display:none;}
 
   /* 2026-08-14：排程表草稿模式──編輯中的「取消／儲存」控制列＋未儲存變更提示。
      不打後端的操作全部先進草稿，按下「儲存」才寫 Google Sheet，見 index.html 內
@@ -2390,6 +2419,7 @@
     .schedule-date{min-width:76px;}
     .schedule-row-controls{gap:6px;}
     .schedule-swap-select{flex-basis:100%;}
+    .schedule-add-new-btn{flex-basis:100%;}
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -2409,7 +2439,7 @@
 
 <!-- 側邊欄：15 人名單 -->
 <aside class="roster-sidebar" id="roster-sidebar">
-  <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count">15 人</span></div>
+  <div class="roster-title">E組｜房產客戶成長鏈<span class="roster-count" id="roster-count">15 人</span></div>
   <a href="?" class="roster-about-link" id="roster-team-link" onclick="return goToTeamPage(event);">🏠 組別九宮格首頁</a>
   <a href="?page=about" class="roster-about-link" id="roster-about-link" onclick="return goToAboutPage(event);">🔗 E 組如何運作</a>
   <a href="?page=schedule" class="roster-about-link" id="roster-schedule-link" onclick="return goToSchedulePage(event);">📅 專講排程表</a>
@@ -2743,6 +2773,30 @@
   </div>
 </div>
 
+<!-- 2026-08-14：排程頁「新增一位夥伴」──名冊上還沒有的新組員，組長自己在頁面上建檔（不用改 code、不用工程師 push）。
+     只在排程表按「儲存」時才真的寫進 Sheet，見 index.html 內 submitScheduleNewMemberModal／persistScheduleNewMembers。 -->
+<div class="edit-modal-backdrop" id="schedule-new-member-backdrop" onclick="closeScheduleNewMemberModal()">
+  <div class="edit-modal schedule-new-member-modal" onclick="event.stopPropagation()">
+    <p class="edit-modal-label">新增一位夥伴（名冊上還沒有的人）</p>
+
+    <label class="wizard-field-label" for="schedule-new-member-id-input">編號（BNI 會員編號，例：068）</label>
+    <input type="text" id="schedule-new-member-id-input" inputmode="numeric" maxlength="3" placeholder="068" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,3)">
+
+    <label class="wizard-field-label" for="schedule-new-member-name-input">姓名</label>
+    <input type="text" id="schedule-new-member-name-input" placeholder="王小明">
+
+    <label class="wizard-field-label" for="schedule-new-member-role-input">專業別</label>
+    <input type="text" id="schedule-new-member-role-input" placeholder="例：仲介經紀人">
+
+    <p class="schedule-new-member-error" id="schedule-new-member-error"></p>
+
+    <div class="edit-modal-actions">
+      <button class="edit-modal-btn" onclick="closeScheduleNewMemberModal()">取消</button>
+      <button class="edit-modal-btn primary" onclick="submitScheduleNewMemberModal()">加入這位夥伴</button>
+    </div>
+  </div>
+</div>
+
 <!-- 存檔狀態提示（後端模式：存檔中／已存檔／失敗可重試） -->
 <div class="save-toast" id="save-toast"></div>
 
@@ -2828,6 +2882,30 @@
     return json;
   }
 
+  // 2026-08-14：把「/exec 全員快照」同步進 PEOPLE_DATA，並把 Sheet 有、但本機 ROSTER 還沒有的人補進 ROSTER。
+  // 三個 hydrate 入口（個人頁 hydrateFromBackend／排程頁 hydrateScheduleFromBackend／
+  // 組別九宮格首頁 hydrateTeamFromBackend）共用同一份，不管哪個頁面先載入，都能讓「排程頁新增的新組員」
+  // 出現在側邊欄／可被 ?id= 直開，不必等特定頁面才同步、也不必改 code 或重新 push。
+  // id="team"／id="schedule" 這兩個保留列天生沒有 .self，下面的檢查自然把它們排除，不用另外列白名單。
+  // 已退出名單（DEPARTED_ROSTER）即使 Sheet 資料列還留著也不補回現役 ROSTER（退出流程另走，不在本次範圍）。
+  // 回傳是否有新成員被加入 ROSTER，呼叫端要記得重繪側邊欄（renderRoster()）。
+  function syncPeopleAndRosterFromSnapshot(all){
+    let rosterChanged = false;
+    Object.keys(all).forEach(id => {
+      const person = all[id];
+      if(!person || !person.self) return;
+      // 後端沒有 photo/leader 這類純前端展示欄位，保留 data.js 原本的、只覆蓋 self/themes。
+      const existing = PEOPLE_DATA[id] || {};
+      PEOPLE_DATA[id] = Object.assign({}, existing, { self: person.self, themes: person.themes });
+      if(!ROSTER.some(p => p.id === id) && !Object.prototype.hasOwnProperty.call(DEPARTED_ROSTER, id)){
+        ROSTER.push({ id, name: person.self.name, en: person.self.en || "", role: person.self.role || "" });
+        rosterChanged = true;
+      }
+    });
+    if(rosterChanged) ROSTER.sort((a, b) => a.id.localeCompare(b.id));
+    return rosterChanged;
+  }
+
   // 冷啟 hydrate：data.js 先渲染的畫面已經在螢幕上，這裡靜默把後端最新資料覆蓋進 PEOPLE_DATA 快取，
   // 成功才重繪目前頁面；失敗只 console.warn，頁面維持 data.js 內容繼續運作（PRD b-4／b-5 驗收）。
   async function hydrateFromBackend(){
@@ -2835,18 +2913,23 @@
     try{
       const all = await fetchAllFromBackend();
       if(!all) return;
+      const rosterChanged = syncPeopleAndRosterFromSnapshot(all);
+      if(rosterChanged) renderRoster();
+      // 2026-07-21：頁尾 provenance 用——只取現役 E 組名單（ROSTER）內的 updated_at 比大小，
+      // 避免已退出名單（DEPARTED_ROSTER，如 052）殘留資料把日期洗成不相關的舊/新值。
       Object.keys(all).forEach(id => {
         const person = all[id];
         if(!person || !person.self) return;
-        // 後端沒有 photo/leader 這類純前端展示欄位，保留 data.js 原本的、只覆蓋 self/themes。
-        const existing = PEOPLE_DATA[id] || {};
-        PEOPLE_DATA[id] = Object.assign({}, existing, { self: person.self, themes: person.themes });
-        // 2026-07-21：頁尾 provenance 用——只取現役 E 組名單（ROSTER）內的 updated_at 比大小，
-        // 避免已退出名單（DEPARTED_ROSTER，如 052）殘留資料把日期洗成不相關的舊/新值。
         if(person.updated_at && ROSTER.some(p => p.id === id)){
           if(!latestUpdatedAt || person.updated_at > latestUpdatedAt) latestUpdatedAt = person.updated_at;
         }
       });
+      // 2026-08-14：冷啟 ?id= 指到的人剛同步進 ROSTER（見上方 coldStartRequestedId 宣告處註解）——
+      // 上面 fallback 開的是 DEFAULT_ID，這裡改補開使用者真正要的那個人。
+      if(coldStartRequestedId && ROSTER.some(p => p.id === coldStartRequestedId) && currentId !== coldStartRequestedId){
+        selectPartner(coldStartRequestedId);
+        coldStartRequestedId = null;
+      }
       // 若目前顯示的人有更新，重新載入該人的 state 並重繪（不打斷使用者正在編輯的 modal）
       // 2026-07-16 修復：一併重繪夥伴卡頁首（renderPartnerHeader），否則 self.role/area 只在
       // PEOPLE_DATA 更新、九宮格本人格（讀 state）跟著對，但頁首（只在 renderActivePage 渲染過一次）沒人再叫，維持冷啟當下的舊值。
@@ -2982,6 +3065,10 @@
   // ===== 目前顯示中的人 =====
   let currentId = null; // 由 initApp() 依 URL ?id= 或側邊欄選擇決定
   let state = null; // { self, themes }，loadState(currentId) 的結果
+  // 2026-08-14：冷啟 ?id= 指到的人剛好是「Sheet 有、但這次載入當下本機 ROSTER 還沒同步到」的新組員
+  // （例如排程頁「新增一位夥伴」剛存檔，另一支裝置/瀏覽器第一次打開這個連結）時，initApp() 先照舊 fallback
+  // 開 DEFAULT_ID，這裡記住原本要的 id，等 hydrateFromBackend() 把 ROSTER 同步好後再補開，見該函式尾端。
+  let coldStartRequestedId = null;
 
   function storageKeyFor(id){
     // 每人獨立 key，互不覆蓋
@@ -3351,6 +3438,7 @@
     document.getElementById("wizard-backdrop").classList.remove("open");
     document.getElementById("guide-backdrop").classList.remove("open");
     document.getElementById("team-cell-modal-backdrop").classList.remove("open"); // 2026-08-09
+    document.getElementById("schedule-new-member-backdrop").classList.remove("open"); // 2026-08-14
     editTarget = null;
     wizardState = null;
     guideTarget = null;
@@ -4247,6 +4335,8 @@
   function renderRoster(){
     const list = document.getElementById("roster-list");
     list.innerHTML = "";
+    const countEl = document.getElementById("roster-count");
+    if(countEl) countEl.textContent = ROSTER.length + " 人"; // 2026-08-14：人數不再寫死，新增夥伴後自動 +1
     ROSTER.forEach(p => {
       const built = isBuilt(p.id);
       const li = document.createElement("li");
@@ -4437,6 +4527,10 @@
   // scheduleDraftChanges 累積這次編輯階段的異動明細，按「儲存」才整批送 GAS（給 Telegram 通知用）。
   let scheduleDraftSnapshot = null; // string[] | null，只在編輯模式中有值
   let scheduleDraftChanges = []; // {path,label,oldValue,newValue}[]
+  // 2026-08-14：「新增一位夥伴」──名冊上還沒有的新組員。同樣走草稿模式，按「儲存」才真的寫進 Sheet
+  // （見 openScheduleNewMemberModal／submitScheduleNewMemberModal／persistScheduleNewMembers）。
+  // 每一筆 {id,name,en,role,area}，area/en 固定空字串（比照 015/028/030/055 空殼 entry 先例，本人之後自己填）。
+  let scheduleDraftNewMembers = [];
 
   // 某年某月的「第一、三個禮拜二」，回傳兩個 Date（一定同月：第一個落在 1–7 號，+14 天落在 15–21 號）
   function scheduleFirstAndThirdTuesdays(year, month){
@@ -4527,13 +4621,17 @@
     wrap.innerHTML = scheduleOrder.map((id, idx) => {
       const date = dates[idx];
       const isPast = date < today;
-      const partner = ROSTER.find(p => p.id === id);
+      const rosterPartner = ROSTER.find(p => p.id === id);
+      // 2026-08-14：這次編輯階段剛用「新增一位夥伴」加入、還沒按儲存的人——只在 scheduleDraftNewMembers 有暫存，
+      // 不是正式 ROSTER 成員，不能給連結（?id= 頁面在 Sheet 上還不存在）。
+      const draftPartner = !rosterPartner ? scheduleDraftNewMembers.find(m => m.id === id) : null;
+      const partner = rosterPartner || draftPartner;
       const departedName = !partner && DEPARTED_ROSTER[id] ? DEPARTED_ROSTER[id].name : "";
       const name = partner ? (partner.en ? `${partner.name} ${partner.en}` : partner.name) : (departedName || id);
       const statusKey = isPast ? "done" : "confirmed";
-      const nameCell = partner
+      const nameCell = rosterPartner
         ? `<a class="schedule-name" href="?id=${id}" onclick="return navToPartner(event,'${id}')">${escapeHtml(name)}</a>`
-        : `<span class="schedule-name">${escapeHtml(name)}</span>`;
+        : `<span class="schedule-name">${escapeHtml(name)}${draftPartner ? "（新增，未儲存）" : ""}</span>`;
 
       let controlsHtml;
       if(!isScheduleEditMode){
@@ -4592,9 +4690,12 @@
       .map(p => `<option value="${p.id}" ${p.id === currentId ? "selected" : ""}>${escapeHtml(p.name)}${p.id === currentId ? "（目前）" : ""}</option>`)
       .join("");
     if(ROSTER.some(p => p.id === currentId)) return options;
-    // 防禦：理論上排程只會排現役成員，這格若不在 ROSTER 內仍讓 select 有合法初始值
-    const label = (DEPARTED_ROSTER[currentId] && DEPARTED_ROSTER[currentId].name) || currentId;
-    return `<option value="${currentId}" selected>${escapeHtml(label)}（目前，已不在名單）</option>` + options;
+    // 這格若不在 ROSTER 內仍讓 select 有合法初始值：可能是這次編輯階段暫存的新夥伴草稿，或防禦性的已退出名單。
+    const draftPartner = scheduleDraftNewMembers.find(m => m.id === currentId);
+    const label = draftPartner
+      ? draftPartner.name + "（新增，未儲存）"
+      : ((DEPARTED_ROSTER[currentId] && DEPARTED_ROSTER[currentId].name) || currentId) + "（目前，已不在名單）";
+    return `<option value="${currentId}" selected>${escapeHtml(label)}</option>` + options;
   }
 
   function renderScheduleAddRow(){
@@ -4608,15 +4709,17 @@
     const used = new Set(scheduleOrder);
     const available = ROSTER.filter(p => !used.has(p.id));
     row.style.display = "";
-    if(available.length === 0){
-      row.innerHTML = `<p class="schedule-add-empty">15 位夥伴都已排入場次</p>`;
-      return;
-    }
+    // 2026-08-14：「從現有名冊挑人」（沒人可挑時顯示提示文字）＋「新增一位不在名單上的夥伴」二選一，
+    // 後者不受名冊是否挑完影響，任何時候都能開（見 openScheduleNewMemberModal）。
+    const existingPickerHtml = available.length > 0
+      ? `<select id="schedule-add-select" class="schedule-swap-select" aria-label="新增講者">
+          ${available.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
+        </select>
+        <button type="button" class="edit-modal-btn primary" onclick="addScheduleEntry()">+ 新增一場</button>`
+      : `<p class="schedule-add-empty">15 位夥伴都已排入場次</p>`;
     row.innerHTML = `
-      <select id="schedule-add-select" class="schedule-swap-select" aria-label="新增講者">
-        ${available.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
-      </select>
-      <button type="button" class="edit-modal-btn primary" onclick="addScheduleEntry()">+ 新增一場</button>
+      ${existingPickerHtml}
+      <button type="button" class="edit-modal-btn schedule-add-new-btn" onclick="openScheduleNewMemberModal()">+ 新增一位不在名單上的夥伴</button>
     `;
   }
 
@@ -4627,14 +4730,17 @@
     isScheduleEditMode = true;
     scheduleDraftSnapshot = scheduleOrder.slice();
     scheduleDraftChanges = [];
+    scheduleDraftNewMembers = [];
     renderScheduleList();
   }
 
-  // 捨棄草稿：scheduleOrder 還原成進入編輯模式那一刻的快照，不碰後端、不寫 localStorage。
+  // 捨棄草稿：scheduleOrder 還原成進入編輯模式那一刻的快照，不碰後端、不寫 localStorage；
+  // scheduleDraftNewMembers 一併清空——這些人從沒真的寫進 Sheet，捨棄草稿就等於沒新增過。
   function discardScheduleDraft(){
     if(scheduleDraftSnapshot) scheduleOrder = scheduleDraftSnapshot.slice();
     scheduleDraftSnapshot = null;
     scheduleDraftChanges = [];
+    scheduleDraftNewMembers = [];
     isScheduleEditMode = false;
   }
 
@@ -4645,15 +4751,20 @@
     renderScheduleList();
   }
 
-  // 儲存：這時才呼叫 persistScheduleState 把整份 scheduleOrder 連同這次編輯階段累積的
-  // scheduleDraftChanges 一次送 GAS；失敗＝草稿與編輯模式都保留（persistScheduleState 的
-  // 重試按鈕會重新呼叫本函式，不會遺漏失敗後又做的新異動）。
+  // 儲存：先寫名冊（若這次編輯階段有用「新增一位夥伴」暫存的新成員），成功才寫排程順序——
+  // 名冊寫入失敗就不動排程，草稿與編輯模式都保留、按鈕可重試（見 persistScheduleNewMembers／persistScheduleState）。
   async function saveScheduleEdit(){
     if(!isScheduleEditMode || !scheduleOrder) return;
+    if(scheduleDraftNewMembers.length > 0){
+      const okNewMembers = await persistScheduleNewMembers();
+      renderScheduleList(); // 不論成功與否都重繪一次：已成功建立的新成員要立刻改顯示成正式名單樣式（連結、非草稿標籤）
+      if(!okNewMembers) return;
+    }
     const ok = await persistScheduleState(scheduleDraftChanges);
     if(!ok) return;
     scheduleDraftSnapshot = null;
     scheduleDraftChanges = [];
+    scheduleDraftNewMembers = [];
     isScheduleEditMode = false;
     renderScheduleList();
   }
@@ -4686,9 +4797,12 @@
     if(idx < scheduleLockedCount()) return;
     const id = scheduleOrder[idx];
     const partner = ROSTER.find(p => p.id === id);
-    const label = partner ? partner.name : id;
+    const draftPartner = !partner ? scheduleDraftNewMembers.find(m => m.id === id) : null;
+    const label = partner ? partner.name : (draftPartner ? draftPartner.name : id);
     if(!window.confirm(`確定要移除「${label}」這一場嗎？`)) return;
     scheduleOrder.splice(idx, 1);
+    // 這位是這次編輯階段才用「新增一位夥伴」建的草稿、還沒存檔：連草稿一起撤銷，等於沒新增過。
+    if(draftPartner) scheduleDraftNewMembers = scheduleDraftNewMembers.filter(m => m.id !== id);
     scheduleDraftChanges.push({ path:"order", label:"移除場次", oldValue:label, newValue:"（已移除）" });
     renderScheduleList();
   }
@@ -4706,7 +4820,10 @@
     scheduleOrder[idx] = newId;
     const oldPartner = ROSTER.find(p => p.id === oldId);
     const newPartner = ROSTER.find(p => p.id === newId);
-    scheduleDraftChanges.push({ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : oldId, newValue: newPartner ? newPartner.name : newId });
+    const oldDraftPartner = !oldPartner ? scheduleDraftNewMembers.find(m => m.id === oldId) : null;
+    // 換掉的那格若是這次編輯階段的新夥伴草稿，一併撤銷（使用者改選了別人，不該憑空留一筆待建的名冊）。
+    if(oldDraftPartner) scheduleDraftNewMembers = scheduleDraftNewMembers.filter(m => m.id !== oldId);
+    scheduleDraftChanges.push({ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : (oldDraftPartner ? oldDraftPartner.name : oldId), newValue: newPartner ? newPartner.name : newId });
     renderScheduleList();
   }
 
@@ -4719,6 +4836,125 @@
     const partner = ROSTER.find(p => p.id === id);
     scheduleDraftChanges.push({ path:"order", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id });
     renderScheduleList();
+  }
+
+  // ============= 2026-08-14：「新增一位夥伴」──名冊上還沒有的新組員 =============
+  // 組長在排程頁編輯模式直接建檔，不用改 data.js、不用工程師 push；只在按「儲存」時才真的寫進 Sheet
+  // （草稿階段只改 scheduleDraftNewMembers 這個記憶體變數，見 submitScheduleNewMemberModal／saveScheduleEdit）。
+  // 建檔內容比照 015/028/030/055 空殼 entry 先例：en/area 空字串、themes 8 格全空，本人之後自己上網站填。
+
+  function scheduleEmptyThemes(){
+    return Array.from({ length: 8 }, () => ({ service:"", ta:"", roles:["","","","","","","",""] }));
+  }
+
+  // 編號正規化：只留數字、補零成三位（跟後端 backend/Code.gs 的 normalizeId 同邏輯，前端先擋一次給即時回饋，
+  // doPost 落地時仍會再正規化一次，雙保險）。呼叫前已用 /^\d{1,3}$/ 驗過長度，這裡不用再防禦超長輸入。
+  function scheduleNormalizeId(raw){
+    return String(raw || "").replace(/\D/g, "").padStart(3, "0");
+  }
+
+  // 目前所有「已被占用」的編號：現役名冊＋已退出名單＋保留字（team/schedule）＋這次編輯階段已暫存的新夥伴草稿。
+  function scheduleAllKnownIds(){
+    const ids = new Set(ROSTER.map(p => p.id));
+    Object.keys(DEPARTED_ROSTER).forEach(id => ids.add(id));
+    scheduleDraftNewMembers.forEach(m => ids.add(m.id));
+    ids.add("team");
+    ids.add("schedule");
+    return ids;
+  }
+
+  function openScheduleNewMemberModal(){
+    document.getElementById("schedule-new-member-id-input").value = "";
+    document.getElementById("schedule-new-member-name-input").value = "";
+    document.getElementById("schedule-new-member-role-input").value = "";
+    document.getElementById("schedule-new-member-error").textContent = "";
+    document.getElementById("schedule-new-member-backdrop").classList.add("open");
+  }
+
+  function closeScheduleNewMemberModal(){
+    document.getElementById("schedule-new-member-backdrop").classList.remove("open");
+  }
+
+  function submitScheduleNewMemberModal(){
+    const errEl = document.getElementById("schedule-new-member-error");
+    const rawId = document.getElementById("schedule-new-member-id-input").value.trim();
+    const name = document.getElementById("schedule-new-member-name-input").value.trim();
+    const role = document.getElementById("schedule-new-member-role-input").value.trim();
+
+    if(!/^\d{1,3}$/.test(rawId)){
+      errEl.textContent = "編號請輸入 1–3 位數字（例：68 或 068）";
+      return;
+    }
+    if(!name){
+      errEl.textContent = "姓名不能空白";
+      return;
+    }
+    if(!role){
+      errEl.textContent = "專業別不能空白";
+      return;
+    }
+    const id = scheduleNormalizeId(rawId);
+    if(scheduleAllKnownIds().has(id)){
+      // ponytail-debt：這裡只跟「目前這台瀏覽器已知道的名單」比對重複，沒有即時重新打後端確認
+      // （理論上有極小機率跟另一台裝置幾乎同時新增同編號的 race condition，15 人小群組、非高頻操作，
+      // 接受這個風險換取不必每次開 modal 都多打一次 API；真的撞號，doPost 會直接覆寫，不會產生壞資料，
+      // 頂多是其中一邊的建檔內容被蓋掉，需要重新補資料）。
+      const existing = ROSTER.find(p => p.id === id);
+      const existingName = existing ? existing.name : ((DEPARTED_ROSTER[id] && DEPARTED_ROSTER[id].name) || "");
+      errEl.textContent = `編號 ${id} 已經有人了${existingName ? "（" + existingName + "）" : ""}，請確認編號是否打錯`;
+      return;
+    }
+
+    scheduleDraftNewMembers.push({ id, name, en:"", role, area:"" });
+    scheduleOrder.push(id);
+    scheduleDraftChanges.push({ path:"order", label:"新增夥伴＋排入場次", oldValue:"", newValue: name + "（" + id + "）" });
+    closeScheduleNewMemberModal();
+    renderScheduleList();
+  }
+
+  // 把一位已成功寫進 Sheet 的新夥伴併入正式 ROSTER／PEOPLE_DATA，讓側欄／個人頁立即可用，不必整頁重整。
+  function commitScheduleNewMemberLocally(m){
+    if(!ROSTER.some(p => p.id === m.id)){
+      ROSTER.push({ id:m.id, name:m.name, en:"", role:m.role });
+      ROSTER.sort((a, b) => a.id.localeCompare(b.id));
+    }
+    PEOPLE_DATA[m.id] = Object.assign({}, PEOPLE_DATA[m.id], {
+      self: { name:m.name, en:"", role:m.role, area:"" },
+      themes: scheduleEmptyThemes()
+    });
+  }
+
+  // 把這次編輯階段暫存的新夥伴逐一寫進 Sheet（走既有 doPost「id 不存在時自動新增列」機制，不用改 Code.gs）。
+  // 每一筆成功就立刻 commit 進正式 ROSTER 並從草稿移除，這樣萬一半路失敗，重試只會處理還沒成功的那幾筆，
+  // 不會對已經真的建到 Sheet 上的人重複建列。
+  async function persistScheduleNewMembers(){
+    if(scheduleDraftNewMembers.length === 0) return true;
+    if(!BACKEND_ENABLED){
+      scheduleDraftNewMembers.forEach(commitScheduleNewMemberLocally);
+      scheduleDraftNewMembers = [];
+      renderRoster();
+      return true;
+    }
+    showToast("建立新夥伴中…", false);
+    try{
+      while(scheduleDraftNewMembers.length > 0){
+        const m = scheduleDraftNewMembers[0];
+        await postToBackend({
+          id: m.id,
+          name: m.name,
+          changes: [{ path:"self", label:"新增 E 組夥伴", oldValue:"", newValue: m.name + "（" + m.id + "）" }],
+          data: { self: { name:m.name, en:"", role:m.role, area:"" }, themes: scheduleEmptyThemes() }
+        });
+        commitScheduleNewMemberLocally(m);
+        scheduleDraftNewMembers.shift();
+      }
+      renderRoster();
+      return true;
+    } catch(err){
+      console.warn("[persistScheduleNewMembers] 建立新夥伴失敗：", err.message);
+      showToast("新增夥伴失敗：" + err.message + "（請重試，草稿還在）", true, () => saveScheduleEdit());
+      return false;
+    }
   }
 
   // 存檔核心：doPost 成功才算數，跟 persistState／persistTeamState 同一套模式。
@@ -4757,6 +4993,8 @@
     try{
       const all = await fetchAllFromBackend();
       if(!all) return;
+      // 2026-08-14：這支已經打過一次全員快照，順便同步 ROSTER（「新增一位夥伴」存的新成員可能還沒進本機名單）。
+      if(syncPeopleAndRosterFromSnapshot(all)) renderRoster();
       const row = all["schedule"];
       if(row && Array.isArray(row.order) && row.order.length > 0){
         if(!isScheduleEditMode){
@@ -5019,6 +5257,8 @@
     try{
       const all = await fetchAllFromBackend();
       if(!all) return;
+      // 2026-08-14：這支已經打過一次全員快照，順便同步 ROSTER（「新增一位夥伴」存的新成員可能還沒進本機名單）。
+      if(syncPeopleAndRosterFromSnapshot(all)) renderRoster();
       const teamRow = all["team"];
       if(teamRow && teamRow.center && Array.isArray(teamRow.cells)){
         if(!isTeamEditMode){
@@ -5157,6 +5397,9 @@
     }
 
     const validRoster = ROSTER.some(p => p.id === requestedId);
+    // 2026-08-14：requestedId 有值但本機 ROSTER（data.js 冷啟預設值）還沒有這個人，可能是剛用排程頁
+    // 「新增一位夥伴」存到 Sheet、還沒同步過來的新組員——記下來，等 hydrateFromBackend() 同步好 ROSTER 再補開。
+    if(requestedId && !validRoster) coldStartRequestedId = requestedId;
     const initialId = validRoster ? requestedId : DEFAULT_ID;
     selectPartner(initialId);
 
