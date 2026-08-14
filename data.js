@@ -515,25 +515,20 @@ const TEAM_GRID_DATA = {
 
 // ============================================================
 // E 組 15 分鐘專講排程表（首頁，2026-08-14 新增，?page=schedule）
-// 純靜態內容（不接 Google Sheet／GAS）：date/id/status 三欄；
-// 講者姓名不重複存，render 時一律從 ROSTER（index.html）依 id 查名字，避免跟名冊資料撕裂。
-// status 值：done（已完成）／confirmed（已排定）／pending（待抽籤確認）
-// 免責聲明（聚會時段、排序規則、09-01～03-02 為 AI 模擬排列非實際抽籤結果）固定文字，寫在 index.html #page-schedule 區塊。
+// 2026-08-14 改版：抽籤已完成、順序已定案，狀態改成依日期自動判定（不再有「待抽籤確認」），
+// 並開放組長（043 洪嘉璿左左）直接在頁面上調順序／換人／加人／移除人（走 GAS doPost 存 Sheet，跟九宮格首頁同一套機制）。
+//
+// 資料模型：只存「講者排序佇列」（一串編號），聚會日期＝每月第一、三個禮拜二，
+// 由 index.html 依「這個人在佇列裡排第幾個」現場算出來，不存日期、不存狀態：
+//   - 調順序 → 只是交換佇列位置，日期跟著位置重算，不用手動改日期
+//   - 加一場 → 接在佇列尾端，自動拿到下一個聚會日
+//   - 移除一場 → 後面的人自動往前遞補一個聚會日
+//   - 已經發生過的場次（日期早於今天）在編輯介面鎖住，不能調順序／移除，維持歷史事實不被洗掉
+// 真相源＝Google Sheet id="schedule"（{order:[...]}）；下面這個常數只是首次載入前的內嵌預設值，
+// Sheet 尚未建過 id="schedule" 這列時，hydrateScheduleFromBackend() 會用它自動建列（比照 id="team" 的自癒設計）。
+// 講者姓名不重複存，render 時一律從 ROSTER（index.html）依編號查名字，避免跟名冊資料撕裂。
 // ============================================================
-const SCHEDULE_DATA = [
-  { date:"2026-08-04", id:"007", status:"done" },
-  { date:"2026-08-18", id:"003", status:"confirmed" },
-  { date:"2026-09-01", id:"043", status:"pending" },
-  { date:"2026-09-15", id:"047", status:"pending" },
-  { date:"2026-10-06", id:"015", status:"pending" },
-  { date:"2026-10-20", id:"050", status:"pending" },
-  { date:"2026-11-03", id:"005", status:"pending" },
-  { date:"2026-11-17", id:"033", status:"pending" },
-  { date:"2026-12-01", id:"031", status:"pending" },
-  { date:"2026-12-15", id:"026", status:"pending" },
-  { date:"2027-01-05", id:"055", status:"pending" },
-  { date:"2027-01-19", id:"028", status:"pending" },
-  { date:"2027-02-02", id:"023", status:"pending" },
-  { date:"2027-02-16", id:"030", status:"pending" },
-  { date:"2027-03-02", id:"025", status:"pending" }
+const SCHEDULE_DEFAULT_ORDER = [
+  "007", "003", "043", "047", "015", "050", "005", "033",
+  "031", "026", "055", "028", "023", "030", "025"
 ];

@@ -27,7 +27,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>E組九宮格｜房產客戶成長鏈</title>
-<script src="data.js?v=20260809joan2qiongan"></script>
+<script src="data.js?v=20260814schedule2"></script>
 <style>
   :root{
     --white:#FFFFFF;
@@ -1816,7 +1816,8 @@
   .about-collab-common a{color:var(--gold-deep); text-decoration:none; font-weight:700;}
   .about-collab-common a:hover{text-decoration:underline;}
 
-  /* 2026-08-14：專講排程表狀態 badge（沿用既有 dashed=待補／gold=已確認 視覺語彙，見 cell-ta.empty／partner-dualteam-badge） */
+  /* 2026-08-14：專講排程表狀態 badge（沿用既有 dashed=待補／gold=已確認 視覺語彙，見 cell-ta.empty／partner-dualteam-badge）
+     狀態只剩兩種（已完成／已排定，依日期自動判定，見 renderScheduleList），「待抽籤確認」已隨抽籤結束移除。 */
   .schedule-status{
     display:inline-block;
     padding:3px 10px;
@@ -1834,10 +1835,137 @@
     border:1px solid rgba(200,160,79,0.55);
     color:var(--gold-deep);
   }
-  .schedule-status.pending{
-    background:transparent;
-    border:1px dashed #CBC6BD;
-    color:#9a9a9a;
+
+  /* 2026-08-14：排程表卡片列表（取代原本純表格）——編輯操作（上下移動／換人／移除）用按鈕，
+     不用拖拉，手機 375px 單指點按就能操作；沿用既有卡片視覺語彙（.team-cell 同款圓角/邊框/配色）。 */
+  .schedule-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin:14px 0 6px;
+  }
+
+  .schedule-row{
+    background:var(--white);
+    border:1.5px solid var(--border-hair);
+    border-radius:12px;
+    padding:12px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+
+  .schedule-row.locked{
+    background:var(--gray-bg);
+  }
+
+  .schedule-row-main{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    font-size:13.5px;
+  }
+
+  .schedule-date{
+    font-weight:700;
+    color:var(--ink);
+    min-width:88px;
+  }
+
+  .schedule-id{
+    color:var(--ink-soft);
+    font-size:12px;
+  }
+
+  a.schedule-name{
+    font-weight:700;
+    color:var(--ink);
+    text-decoration:none;
+    margin-right:auto;
+  }
+  a.schedule-name:hover{color:var(--red); text-decoration:underline;}
+  span.schedule-name{
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-right:auto;
+  }
+
+  .schedule-row-controls{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    padding-top:8px;
+    border-top:1px dashed var(--border-hair);
+  }
+
+  .schedule-move-btn{
+    width:34px;
+    height:34px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    background:var(--white);
+    color:var(--ink);
+    font-size:14px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .schedule-move-btn:disabled{
+    opacity:0.35;
+    cursor:not-allowed;
+  }
+  .schedule-move-btn:hover:not(:disabled){
+    border-color:var(--red);
+    color:var(--red);
+  }
+
+  .schedule-swap-select{
+    flex:1;
+    min-width:110px;
+    padding:8px 10px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    font-family:inherit;
+    font-size:13px;
+    color:var(--ink);
+    background:var(--white);
+  }
+
+  .schedule-remove-btn{
+    padding:8px 12px;
+    border-radius:8px;
+    border:1.5px solid var(--red);
+    background:var(--white);
+    color:var(--red);
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+    font-family:inherit;
+    white-space:nowrap;
+  }
+  .schedule-remove-btn:hover{
+    background:var(--red);
+    color:var(--white);
+  }
+
+  .schedule-row-lock{
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  .schedule-add-row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin:6px 0 20px;
+    flex-wrap:wrap;
+  }
+
+  .schedule-add-empty{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:6px 0 20px;
   }
 
   /* 2026-07-21：「這條鏈還缺誰」缺口區塊 */
@@ -2238,6 +2366,13 @@
     .team-cell-tag{font-size:9px; padding:1px 6px;}
     .team-member-chip{font-size:9.5px; padding:2px 6px;}
     .team-checklist{grid-template-columns:1fr;}
+
+    /* 2026-08-14：排程表卡片在窄螢幕上收窄字級／間距，換講者下拉在編輯列自己獨佔一行才不會擠爆 375px */
+    .schedule-row{padding:10px 12px;}
+    .schedule-row-main{font-size:12.5px; gap:7px;}
+    .schedule-date{min-width:76px;}
+    .schedule-row-controls{gap:6px;}
+    .schedule-swap-select{flex-basis:100%;}
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -2459,27 +2594,26 @@
   </div>
   <!-- /#page-team -->
 
-  <!-- 2026-08-14：15 分鐘專講排程表（?page=schedule）。純靜態內容，不接 Google Sheet／GAS，
-       資料源 data.js SCHEDULE_DATA；講者姓名從 ROSTER 依編號查，不重複存。 -->
+  <!-- 2026-08-14：15 分鐘專講排程表（?page=schedule）。走 GAS doPost 存 Google Sheet（id="schedule"，
+       比照九宮格首頁 id="team" 同一套機制）；資料只存講者排序佇列，日期依「每月第一、三個禮拜二」規則現場算出來，
+       不存日期不存狀態。講者姓名從 ROSTER 依編號查，不重複存。 -->
   <div id="page-schedule" style="display:none;">
 
-    <div class="section-head">
-      <h2>📅 15 分鐘專講排程表</h2>
-      <span class="section-note">每月第一、三個禮拜二</span>
+    <div class="section-head team-page-head-row">
+      <div>
+        <h2>📅 15 分鐘專講排程表</h2>
+        <span class="section-note">每月第一、三個禮拜二</span>
+      </div>
+      <button type="button" class="team-edit-toggle-btn" id="schedule-edit-toggle-btn" onclick="toggleScheduleEditMode(!isScheduleEditMode)">✏️ 編輯這頁</button>
     </div>
 
     <div class="about-warning-banner">
-      聚會時段：每月第一、三個禮拜二。排序規則：抽籤，不照會員編號。09-01～03-02 這 13 人的順序是 AI 模擬排列，用來規劃時程參考，不是實際抽籤結果——真正順序仍要在每次組聚現場抽。
+      聚會時段：每月第一、三個禮拜二。排序由組長安排，可隨時調整。
     </div>
 
-    <div class="about-table-wrap">
-      <table class="about-collab-table">
-        <thead>
-          <tr><th>日期</th><th>編號</th><th>講者</th><th>狀態</th></tr>
-        </thead>
-        <tbody id="schedule-tbody"></tbody>
-      </table>
-    </div>
+    <div class="schedule-list" id="schedule-list"></div>
+
+    <div class="schedule-add-row" id="schedule-add-row" style="display:none;"></div>
 
     <footer>
       <span>E組｜房產客戶成長鏈</span>
@@ -4265,24 +4399,69 @@
   }
 
   // ================= 2026-08-14：15 分鐘專講排程表（?page=schedule） =================
-  // 純靜態頁，資料源 data.js SCHEDULE_DATA，不打 GAS／不 hydrate。
-  const SCHEDULE_STATUS_LABEL = { done:"已完成", confirmed:"已排定", pending:"待抽籤確認" };
+  // 資料模型：只存講者排序佇列（scheduleOrder，字串編號陣列），聚會日期＝每月第一、三個禮拜二，
+  // 依「這個人在佇列裡排第幾個」現場算出來，不存日期不存狀態（過期就會自動變成不對的資料，故不存）。
+  // 狀態：日期早於今天＝已完成、今天或未來＝已排定；已完成場次在編輯模式鎖住不能調整。
+  // 存檔走 GAS doPost，id="schedule"，data:{order:[...]}——與 id="team" 同一套 schema-agnostic 後端，
+  // 不需要額外部署／改 Code.gs。
+  const SCHEDULE_STATUS_LABEL = { done:"已完成", confirmed:"已排定" };
+  const SCHEDULE_STORAGE_KEY = "e-team-grid-schedule-state-v1";
+  const SCHEDULE_ANCHOR_YEAR = 2026;
+  const SCHEDULE_ANCHOR_MONTH = 7; // 0-indexed，7＝8 月（排程表第一場所在月份，序列往後推算的起點）
 
-  function renderSchedulePage(){
-    const tbody = document.getElementById("schedule-tbody");
-    if(!tbody || typeof SCHEDULE_DATA === "undefined") return;
-    tbody.innerHTML = SCHEDULE_DATA.map(row => {
-      const partner = ROSTER.find(p => p.id === row.id);
-      const name = partner ? (partner.en ? `${partner.name} ${partner.en}` : partner.name) : row.id;
-      const label = SCHEDULE_STATUS_LABEL[row.status] || row.status;
-      const link = `<a href="?id=${row.id}" onclick="return navToPartner(event,'${row.id}')">`;
-      return `<tr>
-        <td>${escapeHtml(row.date)}</td>
-        <td>${link}${escapeHtml(row.id)}</a></td>
-        <td>${link}${escapeHtml(name)}</a></td>
-        <td><span class="schedule-status ${row.status}">${escapeHtml(label)}</span></td>
-      </tr>`;
-    }).join("");
+  let scheduleOrder = null; // string[]，講者編號依序；真相源＝後端 Sheet id="schedule"
+  let isScheduleEditMode = false;
+
+  // 某年某月的「第一、三個禮拜二」，回傳兩個 Date（一定同月：第一個落在 1–7 號，+14 天落在 15–21 號）
+  function scheduleFirstAndThirdTuesdays(year, month){
+    const first = new Date(year, month, 1);
+    while(first.getDay() !== 2) first.setDate(first.getDate() + 1);
+    const third = new Date(first);
+    third.setDate(third.getDate() + 14);
+    return [first, third];
+  }
+
+  // 產生序列中前 n 場的聚會日期（Date[]），index 對應 scheduleOrder 同 index
+  function scheduleMeetingDates(n){
+    const dates = [];
+    let y = SCHEDULE_ANCHOR_YEAR, m = SCHEDULE_ANCHOR_MONTH;
+    while(dates.length < n){
+      dates.push(...scheduleFirstAndThirdTuesdays(y, m));
+      m++;
+      if(m > 11){ m = 0; y++; }
+    }
+    return dates.slice(0, n);
+  }
+
+  function scheduleFmtDate(d){
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+
+  // 今天（瀏覽器當地日期，去掉時分秒方便比較——這是給台灣使用者看的頁面，不處理跨時區）
+  function scheduleToday(){
+    const t = new Date();
+    t.setHours(0,0,0,0);
+    return t;
+  }
+
+  // 已經發生過的場次數（從佇列最前面算起，這幾格編輯模式要鎖住）
+  function scheduleLockedCount(){
+    if(!scheduleOrder) return 0;
+    const today = scheduleToday();
+    return scheduleMeetingDates(scheduleOrder.length).filter(d => d < today).length;
+  }
+
+  function loadScheduleState(){
+    let saved = null;
+    try{
+      saved = JSON.parse(localStorage.getItem(SCHEDULE_STORAGE_KEY) || "null");
+    } catch(e){
+      saved = null;
+    }
+    if(saved && Array.isArray(saved.order) && saved.order.length > 0){
+      return saved.order;
+    }
+    return SCHEDULE_DEFAULT_ORDER.slice();
   }
 
   function showSchedulePage(){
@@ -4293,7 +4472,8 @@
     document.getElementById("page-schedule").style.display = "";
     currentId = null;
     document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
-    renderSchedulePage();
+    scheduleOrder = loadScheduleState();
+    renderScheduleList();
   }
 
   function goToSchedulePage(e){
@@ -4305,7 +4485,213 @@
     window.history.replaceState({}, "", url); // 沿用既有路由風格（goToAboutPage／goToTeamPage 也用 replaceState）
     closeRoster();
     window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
+    hydrateScheduleFromBackend();
     return false;
+  }
+
+  function renderScheduleList(){
+    const wrap = document.getElementById("schedule-list");
+    if(!wrap || !scheduleOrder) return;
+
+    const dates = scheduleMeetingDates(scheduleOrder.length);
+    const today = scheduleToday();
+    const lockedCount = dates.filter(d => d < today).length;
+
+    wrap.innerHTML = scheduleOrder.map((id, idx) => {
+      const date = dates[idx];
+      const isPast = date < today;
+      const partner = ROSTER.find(p => p.id === id);
+      const departedName = !partner && DEPARTED_ROSTER[id] ? DEPARTED_ROSTER[id].name : "";
+      const name = partner ? (partner.en ? `${partner.name} ${partner.en}` : partner.name) : (departedName || id);
+      const statusKey = isPast ? "done" : "confirmed";
+      const nameCell = partner
+        ? `<a class="schedule-name" href="?id=${id}" onclick="return navToPartner(event,'${id}')">${escapeHtml(name)}</a>`
+        : `<span class="schedule-name">${escapeHtml(name)}</span>`;
+
+      let controlsHtml;
+      if(!isScheduleEditMode){
+        controlsHtml = "";
+      } else if(isPast){
+        controlsHtml = `<div class="schedule-row-lock">🔒 已發生過，不可調整</div>`;
+      } else {
+        controlsHtml = `
+          <div class="schedule-row-controls">
+            <button type="button" class="schedule-move-btn" ${idx <= lockedCount ? "disabled" : ""} onclick="moveScheduleEntry(${idx},-1)" aria-label="上移">▲</button>
+            <button type="button" class="schedule-move-btn" ${idx >= scheduleOrder.length - 1 ? "disabled" : ""} onclick="moveScheduleEntry(${idx},1)" aria-label="下移">▼</button>
+            <select class="schedule-swap-select" aria-label="換講者" onchange="swapScheduleEntry(${idx}, this.value)">
+              ${buildScheduleSwapOptions(id)}
+            </select>
+            <button type="button" class="schedule-remove-btn" onclick="removeScheduleEntry(${idx})">移除</button>
+          </div>`;
+      }
+
+      return `<div class="schedule-row${isPast ? " locked" : ""}">
+        <div class="schedule-row-main">
+          <span class="schedule-date">${escapeHtml(scheduleFmtDate(date))}</span>
+          <span class="schedule-id">${escapeHtml(id)}</span>
+          ${nameCell}
+          <span class="schedule-status ${statusKey}">${escapeHtml(SCHEDULE_STATUS_LABEL[statusKey])}</span>
+        </div>
+        ${controlsHtml}
+      </div>`;
+    }).join("");
+
+    renderScheduleAddRow();
+  }
+
+  // 「換講者」下拉選項：現役名單中尚未排入的人 ＋ 目前這格的人本身（讓 select 一定有合法初始值）
+  function buildScheduleSwapOptions(currentId){
+    const used = new Set(scheduleOrder);
+    const options = ROSTER
+      .filter(p => p.id === currentId || !used.has(p.id))
+      .map(p => `<option value="${p.id}" ${p.id === currentId ? "selected" : ""}>${escapeHtml(p.name)}${p.id === currentId ? "（目前）" : ""}</option>`)
+      .join("");
+    if(ROSTER.some(p => p.id === currentId)) return options;
+    // 防禦：理論上排程只會排現役成員，這格若不在 ROSTER 內仍讓 select 有合法初始值
+    const label = (DEPARTED_ROSTER[currentId] && DEPARTED_ROSTER[currentId].name) || currentId;
+    return `<option value="${currentId}" selected>${escapeHtml(label)}（目前，已不在名單）</option>` + options;
+  }
+
+  function renderScheduleAddRow(){
+    const row = document.getElementById("schedule-add-row");
+    if(!row) return;
+    if(!isScheduleEditMode){
+      row.style.display = "none";
+      row.innerHTML = "";
+      return;
+    }
+    const used = new Set(scheduleOrder);
+    const available = ROSTER.filter(p => !used.has(p.id));
+    row.style.display = "";
+    if(available.length === 0){
+      row.innerHTML = `<p class="schedule-add-empty">15 位夥伴都已排入場次</p>`;
+      return;
+    }
+    row.innerHTML = `
+      <select id="schedule-add-select" class="schedule-swap-select" aria-label="新增講者">
+        ${available.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
+      </select>
+      <button type="button" class="edit-modal-btn primary" onclick="addScheduleEntry()">+ 新增一場</button>
+    `;
+  }
+
+  function toggleScheduleEditMode(on){
+    isScheduleEditMode = on;
+    const btn = document.getElementById("schedule-edit-toggle-btn");
+    btn.textContent = on ? "完成編輯" : "✏️ 編輯這頁";
+    btn.classList.toggle("active", on);
+    if(!on) hideToast();
+    renderScheduleList();
+  }
+
+  function moveScheduleEntry(idx, delta){
+    if(!isScheduleEditMode || !scheduleOrder) return;
+    const lockedCount = scheduleLockedCount();
+    const newIdx = idx + delta;
+    if(idx < lockedCount || newIdx < lockedCount || newIdx >= scheduleOrder.length) return;
+    const tmp = scheduleOrder[idx];
+    scheduleOrder[idx] = scheduleOrder[newIdx];
+    scheduleOrder[newIdx] = tmp;
+    renderScheduleList();
+    persistScheduleState([{ path:"order", label:"調整排程順序", oldValue:"", newValue: scheduleOrder.join(",") }]);
+  }
+
+  function removeScheduleEntry(idx){
+    if(!isScheduleEditMode || !scheduleOrder) return;
+    if(idx < scheduleLockedCount()) return;
+    const id = scheduleOrder[idx];
+    const partner = ROSTER.find(p => p.id === id);
+    const label = partner ? partner.name : id;
+    if(!window.confirm(`確定要移除「${label}」這一場嗎？`)) return;
+    scheduleOrder.splice(idx, 1);
+    renderScheduleList();
+    persistScheduleState([{ path:"order", label:"移除場次", oldValue:label, newValue:"（已移除）" }]);
+  }
+
+  function swapScheduleEntry(idx, newId){
+    if(!isScheduleEditMode || !scheduleOrder) return;
+    if(idx < scheduleLockedCount()){ renderScheduleList(); return; }
+    const oldId = scheduleOrder[idx];
+    if(!newId || newId === oldId) return;
+    if(scheduleOrder.includes(newId)){
+      alert("這位夥伴已經排在另一場，請先從那一場移除");
+      renderScheduleList();
+      return;
+    }
+    scheduleOrder[idx] = newId;
+    const oldPartner = ROSTER.find(p => p.id === oldId);
+    const newPartner = ROSTER.find(p => p.id === newId);
+    renderScheduleList();
+    persistScheduleState([{ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : oldId, newValue: newPartner ? newPartner.name : newId }]);
+  }
+
+  function addScheduleEntry(){
+    const select = document.getElementById("schedule-add-select");
+    if(!select || !select.value || !scheduleOrder) return;
+    const id = select.value;
+    if(scheduleOrder.includes(id)) return; // 防禦，select 選項理論上已排除已在佇列的人
+    scheduleOrder.push(id);
+    renderScheduleList();
+    const partner = ROSTER.find(p => p.id === id);
+    persistScheduleState([{ path:"order", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id }]);
+  }
+
+  // 存檔核心：doPost 成功才算數，跟 persistState／persistTeamState 同一套模式。
+  // schedule 資料整份 { order:[...] } 存取，id 固定 "schedule"。
+  async function persistScheduleState(changes){
+    if(!BACKEND_ENABLED){
+      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify({ order: scheduleOrder }));
+      return true;
+    }
+
+    showToast("存檔中…", false);
+    try{
+      await postToBackend({
+        id: "schedule",
+        name: "15 分鐘專講排程表",
+        changes: changes || [],
+        data: { order: scheduleOrder }
+      });
+      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify({ order: scheduleOrder }));
+      showToast("已存檔", false);
+      return true;
+    } catch(err){
+      console.warn("[persistScheduleState] 後端存檔失敗：", err.message);
+      showToast("存檔失敗：" + err.message + "（請重試，內容還在畫面上不會遺失）", true, () => persistScheduleState(changes).then(ok => {
+        if(ok) hideToast();
+      }));
+      return false;
+    }
+  }
+
+  // 冷啟 hydrate：SCHEDULE_DEFAULT_ORDER（data.js 內嵌預設值）已先渲染在畫面上，這裡打後端拿最新資料靜默覆蓋。
+  // ★ 自癒設計：若 Sheet 尚無 id="schedule" 這一列，用內嵌預設資料自動 doPost 建立（比照 hydrateTeamFromBackend）。
+  // 編輯中（isScheduleEditMode）不覆蓋，避免打斷正在編輯的人。
+  async function hydrateScheduleFromBackend(){
+    if(!BACKEND_ENABLED) return;
+    try{
+      const all = await fetchAllFromBackend();
+      if(!all) return;
+      const row = all["schedule"];
+      if(row && Array.isArray(row.order) && row.order.length > 0){
+        if(!isScheduleEditMode){
+          scheduleOrder = row.order;
+          if(document.getElementById("page-schedule").style.display !== "none"){
+            renderScheduleList();
+          }
+        }
+      } else {
+        await postToBackend({
+          id: "schedule",
+          name: "15 分鐘專講排程表",
+          changes: [{ path:"order", label:"排程表初始化", oldValue:"", newValue:"自動建立初始資料" }],
+          data: { order: SCHEDULE_DEFAULT_ORDER }
+        });
+        console.info("[hydrateScheduleFromBackend] Sheet 尚無 id=schedule 列，已用內嵌預設資料自動建立");
+      }
+    } catch(err){
+      console.warn("[hydrateScheduleFromBackend] 排程表後端資料處理失敗，維持內嵌預設資料：", err.message);
+    }
   }
 
   function renderTeamGrid(){
@@ -4659,6 +5045,7 @@
 
     if(requestedPage === "schedule"){
       showSchedulePage();
+      hydrateScheduleFromBackend();
       return;
     }
 
