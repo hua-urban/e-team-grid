@@ -3106,6 +3106,72 @@
     return { self, themes };
   }
 
+  // ===== 2026-08-23：存檔防呆——攔「一次清掉大量已存在內容」=====
+  // 起因：005 劉恩秀那列 2026-08-21 被一次存檔洗掉 5 個主題區塊（40 格）＋短期派遣 1 格，
+  // 8/23 才由 003 反饋發現，靠 7/2 紙本謄錄補回（見 [[E組九宮格展示網站_開發紀錄]] 2026-08-23 段）。
+  // 根因不是後端壞掉：doPost 一律「整包覆寫」該人那列，不做欄位級 merge，所以只要送出去的
+  // state 比雲端現有內容少，少掉的部分就當場消失、無版本可回、也不會通知任何人。
+  // 這裡在真正 POST 前抓一次雲端最新版比對格數，掉太多就先讓人確認一次。
+  // 刻意 fail-open：比對用的 GET 失敗時放行存檔，避免後端一抖就讓人存不了檔（防呆不該比原功能還會擋路）。
+  const WIPE_GUARD_THRESHOLD = 5; // 一次少 5 格以上才問；正常刪一兩格不騷擾
+
+  // 算「有內容的格數」：每個主題的 service／ta 各算 1 格，roles 每個非空字串算 1 格。
+  function countFilledUnits(themes){
+    let n = 0;
+    (Array.isArray(themes) ? themes : []).forEach(t => {
+      if(!t) return;
+      if(t.service && String(t.service).trim()) n++;
+      if(t.ta && String(t.ta).trim()) n++;
+      (Array.isArray(t.roles) ? t.roles : []).forEach(r => {
+        if(r && String(r).trim()) n++;
+      });
+    });
+    return n;
+  }
+
+  // 列出「掉了 3 格以上」的主題，讓確認視窗講得出具體是哪幾塊要被清掉，而不是只丟一個數字。
+  function describeWipedThemes(remoteThemes, localThemes){
+    const rt = Array.isArray(remoteThemes) ? remoteThemes : [];
+    const lt = Array.isArray(localThemes) ? localThemes : [];
+    const out = [];
+    for(let i = 0; i < rt.length; i++){
+      const before = countFilledUnits([rt[i]]);
+      const after = countFilledUnits([lt[i]]);
+      if(before - after >= 3){
+        const name = (rt[i] && rt[i].service && String(rt[i].service).trim()) || ("第 " + (i + 1) + " 個主題");
+        out.push("・" + name + "：" + before + " 格 → " + after + " 格");
+      }
+    }
+    return out;
+  }
+
+  // 回傳 true＝可以寫入；false＝使用者按了取消，呼叫端必須放棄這次存檔。
+  async function confirmIfWipingContent(id, outgoingThemes){
+    let remote = null;
+    try{
+      const all = await fetchAllFromBackend();
+      remote = all && all[id];
+    } catch(err){
+      console.warn("[wipeGuard] 取雲端版本失敗，略過防呆直接存檔：", err.message);
+      return true;
+    }
+    if(!remote || !Array.isArray(remote.themes)) return true;
+
+    const before = countFilledUnits(remote.themes);
+    const after = countFilledUnits(outgoingThemes);
+    const lost = before - after;
+    if(lost < WIPE_GUARD_THRESHOLD) return true;
+
+    const detail = describeWipedThemes(remote.themes, outgoingThemes);
+    const msg =
+      "⚠️ 這次存檔會清掉雲端上已經填好的 " + lost + " 格內容。\n\n" +
+      (detail.length ? detail.join("\n") + "\n\n" : "") +
+      "存檔是整頁覆蓋，被清掉的內容沒有備份、救不回來。\n" +
+      "如果你只是想改一兩個字，請按「取消」，把頁面重新整理一次再改。\n\n" +
+      "確定要清掉這些內容嗎？";
+    return window.confirm(msg);
+  }
+
   // 存檔核心：localStorage-only 模式＝原行為（同步、必成功）；後端模式＝doPost 成功才算數，
   // localStorage 降級為快取（PRD § 12.1「存檔策略」）。回傳 Promise<boolean> 給呼叫端判斷要不要關 modal。
   // changes：[{path,label,oldValue,newValue}]，後端模式才用來組 Telegram 通知內容。
@@ -3119,6 +3185,12 @@
     }
 
     showToast("存檔中…", false);
+    // 防呆擋在 POST 之前：使用者取消就什麼都不做，雲端維持原樣。
+    const allowed = await confirmIfWipingContent(currentId, state.themes);
+    if(!allowed){
+      showToast("已取消存檔，雲端內容沒有變動", false);
+      return false;
+    }
     try{
       await postToBackend({
         id: currentId,
