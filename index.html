@@ -89,6 +89,43 @@
     pointer-events:none;
   }
 
+  /* 2026-09-05：本人（050 Dian）語音反映「沒有找到哪裡可以讓我更正」——原本編輯入口
+     只有頁尾那一個，夥伴不會捲到最底所以以為不能改。夥伴卡右側補同功能入口，頁尾保留。 */
+  .partner-card-actions{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    position:relative;
+    z-index:1;
+  }
+
+  .partner-edit-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:9px 16px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,0.34);
+    background:rgba(255,255,255,0.08);
+    color:var(--white);
+    font-family:inherit;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    cursor:pointer;
+    transition:background 140ms var(--ease-out), border-color 140ms var(--ease-out);
+  }
+
+  .partner-edit-btn:hover{
+    background:rgba(255,255,255,0.18);
+    border-color:rgba(255,255,255,0.58);
+  }
+
+  /* 已在編輯模式時由頂端 banner 接手，按鈕退場避免兩個入口並存造成困惑 */
+  body.edit-mode .partner-edit-btn{ display:none; }
+
   .partner-id{
     font-size:13px;
     letter-spacing:0.08em;
@@ -2468,7 +2505,10 @@
       <p class="partner-meta" id="active-meta">仲介經紀人<span class="sep">｜</span>三重・蘆洲・新莊</p>
       <p class="partner-dualteam-badge" id="active-dualteam-badge" style="display:none;"></p>
     </div>
-    <div class="leader-badge" id="active-leader-badge">★ 組長</div>
+    <div class="partner-card-actions">
+      <div class="leader-badge" id="active-leader-badge">★ 組長</div>
+      <button type="button" class="partner-edit-btn" id="partner-edit-btn" onclick="toggleEditMode(true)">✏️ 編輯這頁</button>
+    </div>
   </div>
 
   <!-- v4.1：個人頁分頁（左「互動九宮格」預設／右「原始手寫圖」） -->
