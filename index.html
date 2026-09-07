@@ -1937,26 +1937,6 @@
     border-top:1px dashed var(--border-hair);
   }
 
-  .schedule-move-btn{
-    width:34px;
-    height:34px;
-    border-radius:8px;
-    border:1.5px solid var(--border-hair);
-    background:var(--white);
-    color:var(--ink);
-    font-size:14px;
-    cursor:pointer;
-    font-family:inherit;
-  }
-  .schedule-move-btn:disabled{
-    opacity:0.35;
-    cursor:not-allowed;
-  }
-  .schedule-move-btn:hover:not(:disabled){
-    border-color:var(--red);
-    color:var(--red);
-  }
-
   .schedule-swap-select{
     flex:1;
     min-width:110px;
@@ -1989,6 +1969,75 @@
   .schedule-row-lock{
     font-size:12px;
     color:var(--ink-soft);
+  }
+
+  /* 2026-09-07：日期可編輯＋實體／線上。日期不再由「排第幾個」算出來，改成每一場自己存一個日期，
+     組長可直接改（活動提前或延後）；出席方式兩選一，見 renderScheduleList／setScheduleEntryDate／setScheduleEntryMode。 */
+  .schedule-mode{
+    display:inline-block;
+    padding:3px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    white-space:nowrap;
+    border:1.5px solid var(--border-hair);
+    color:var(--ink-soft);
+    background:var(--white);
+  }
+  .schedule-mode.onsite{
+    border-color:var(--gold-deep);
+    color:var(--gold-deep);
+  }
+  .schedule-mode.online{
+    border-color:var(--red);
+    color:var(--red);
+  }
+
+  .schedule-date-input{
+    padding:7px 9px;
+    border-radius:8px;
+    border:1.5px solid var(--border-hair);
+    font-family:inherit;
+    font-size:13px;
+    color:var(--ink);
+    background:var(--white);
+    min-width:150px;
+  }
+  .schedule-date-input:focus{
+    outline:none;
+    border-color:var(--red);
+  }
+
+  .schedule-mode-toggle{
+    display:inline-flex;
+    border-radius:8px;
+    overflow:hidden;
+    border:1.5px solid var(--border-hair);
+  }
+  .schedule-mode-toggle button{
+    padding:8px 12px;
+    border:none;
+    background:var(--white);
+    color:var(--ink-soft);
+    font-family:inherit;
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .schedule-mode-toggle button.active{
+    background:var(--red);
+    color:var(--white);
+  }
+  .schedule-mode-toggle button + button{
+    border-left:1.5px solid var(--border-hair);
+  }
+
+  .schedule-field-label{
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink-soft);
+    white-space:nowrap;
   }
 
   .schedule-add-row{
@@ -2456,6 +2505,9 @@
     .schedule-date{min-width:76px;}
     .schedule-row-controls{gap:6px;}
     .schedule-swap-select{flex-basis:100%;}
+    .schedule-date-input{flex-basis:100%; min-width:0;} /* 2026-09-07 */
+    .schedule-mode-toggle{flex-basis:100%;}
+    .schedule-mode-toggle button{flex:1;}
     .schedule-add-new-btn{flex-basis:100%;}
   }
 
@@ -2689,13 +2741,13 @@
     <div class="section-head team-page-head-row">
       <div>
         <h2>📅 15 分鐘專講排程表</h2>
-        <span class="section-note">每月第一、三個禮拜二</span>
+        <span class="section-note">日期與出席方式由組長安排</span>
       </div>
       <div class="schedule-edit-controls" id="schedule-edit-controls"></div>
     </div>
 
     <div class="about-warning-banner">
-      聚會時段：每月第一、三個禮拜二。排序由組長安排，可隨時調整。
+      日期預設為每月第一、三個禮拜二；活動若提前或延後，組長按「編輯這頁」可直接改日期，並標註實體或線上。清單一律依日期由早到晚排列。
     </div>
 
     <div class="schedule-list" id="schedule-list"></div>
@@ -4620,23 +4672,31 @@
   }
 
   // ================= 2026-08-14：15 分鐘專講排程表（?page=schedule） =================
-  // 資料模型：只存講者排序佇列（scheduleOrder，字串編號陣列），聚會日期＝每月第一、三個禮拜二，
-  // 依「這個人在佇列裡排第幾個」現場算出來，不存日期不存狀態（過期就會自動變成不對的資料，故不存）。
+  // 2026-09-07 改版：日期從「算出來」改成「存下來」，並新增出席方式（實體／線上）。
+  //   舊模型：只存 order:[編號]，日期＝每月第一、三個禮拜二依序位現算 → 活動提前或延後就對不上，組長也改不動。
+  //   新模型：entries:[{id,date,mode}]，每一場自己帶日期（YYYY-MM-DD）與 mode（onsite／online），
+  //           組長在編輯模式可直接改日期與出席方式；日期不再跟序位綁定，因此清單一律「依日期由早到晚」排序，
+  //           上下移按鈕已移除（要調順序＝改日期，語意更直接，也不會出現日期與順序互相矛盾的狀態）。
+  // 相容：後端／localStorage 若只有舊的 order 陣列，載入時自動用原本的第一、三週二算法補日期、mode 預設實體
+  //       （見 normalizeScheduleEntries），不需要手動搬資料；第一次按儲存就會以新格式寫回 Sheet。
+  //       寫回時仍同時寫一份 order 陣列，讓任何還沒更新的舊分頁不至於讀到空白。
   // 狀態：日期早於今天＝已完成、今天或未來＝已排定；已完成場次在編輯模式鎖住不能調整。
-  // 存檔走 GAS doPost，id="schedule"，data:{order:[...]}——與 id="team" 同一套 schema-agnostic 後端，
-  // 不需要額外部署／改 Code.gs。
+  // 存檔走 GAS doPost，id="schedule"，data:{entries:[...],order:[...]}——與 id="team" 同一套 schema-agnostic
+  // 後端，不需要額外部署／改 Code.gs。
   const SCHEDULE_STATUS_LABEL = { done:"已完成", confirmed:"已排定" };
+  const SCHEDULE_MODE_LABEL = { onsite:"實體", online:"線上" };
+  const SCHEDULE_DEFAULT_MODE = "onsite";
   const SCHEDULE_STORAGE_KEY = "e-team-grid-schedule-state-v1";
   const SCHEDULE_ANCHOR_YEAR = 2026;
-  const SCHEDULE_ANCHOR_MONTH = 7; // 0-indexed，7＝8 月（排程表第一場所在月份，序列往後推算的起點）
+  const SCHEDULE_ANCHOR_MONTH = 7; // 0-indexed，7＝8 月（舊資料補日期時的推算起點，見 normalizeScheduleEntries）
 
-  let scheduleOrder = null; // string[]，講者編號依序；真相源＝後端 Sheet id="schedule"
+  let scheduleEntries = null; // {id,date,mode}[]，依日期排序；真相源＝後端 Sheet id="schedule"
   let isScheduleEditMode = false;
   // 2026-08-14：草稿模式（見下方 startScheduleEdit／cancelScheduleEdit／saveScheduleEdit）。
-  // 編輯中所有調整（上下移／換人／新增／移除）只改 scheduleOrder 這個記憶體變數並重繪，不打後端、
+  // 編輯中所有調整（改日期／改出席方式／換人／新增／移除）只改 scheduleEntries 這個記憶體變數並重繪，不打後端、
   // 不寫 localStorage 正式鍵；scheduleDraftSnapshot 存進編輯模式那一刻的原始順序，供「取消」還原，
   // scheduleDraftChanges 累積這次編輯階段的異動明細，按「儲存」才整批送 GAS（給 Telegram 通知用）。
-  let scheduleDraftSnapshot = null; // string[] | null，只在編輯模式中有值
+  let scheduleDraftSnapshot = null; // {id,date,mode}[] | null，只在編輯模式中有值
   let scheduleDraftChanges = []; // {path,label,oldValue,newValue}[]
   // 2026-08-14：「新增一位夥伴」──名冊上還沒有的新組員。同樣走草稿模式，按「儲存」才真的寫進 Sheet
   // （見 openScheduleNewMemberModal／submitScheduleNewMemberModal／persistScheduleNewMembers）。
@@ -4652,7 +4712,8 @@
     return [first, third];
   }
 
-  // 產生序列中前 n 場的聚會日期（Date[]），index 對應 scheduleOrder 同 index
+  // 產生前 n 場的預設聚會日期（Date[]）——只在「舊資料補日期」與「新增一場時給預設值」時用到，
+  // 日期一旦存進 entries 就以存下來的為準，不再由這支覆蓋。
   function scheduleMeetingDates(n){
     const dates = [];
     let y = SCHEDULE_ANCHOR_YEAR, m = SCHEDULE_ANCHOR_MONTH;
@@ -4668,6 +4729,17 @@
     return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   }
 
+  // "YYYY-MM-DD" → Date（當地時間 00:00）。用 new Date("2026-08-04") 會被當成 UTC 午夜，在 UTC+8 仍是同一天，
+  // 但為了跟 scheduleToday() 的比較語意一致（都用當地零時），這裡自己拆欄位組。無法解析回傳 null。
+  function scheduleParseDate(str){
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(str || "").trim());
+    if(!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    d.setHours(0,0,0,0);
+    if(isNaN(d.getTime())) return null;
+    return d;
+  }
+
   // 今天（瀏覽器當地日期，去掉時分秒方便比較——這是給台灣使用者看的頁面，不處理跨時區）
   function scheduleToday(){
     const t = new Date();
@@ -4675,11 +4747,53 @@
     return t;
   }
 
-  // 已經發生過的場次數（從佇列最前面算起，這幾格編輯模式要鎖住）
-  function scheduleLockedCount(){
-    if(!scheduleOrder) return 0;
-    const today = scheduleToday();
-    return scheduleMeetingDates(scheduleOrder.length).filter(d => d < today).length;
+  // 某一場是否已經發生過（＝這一列在編輯模式要鎖住）。日期解析不出來時當作未來場次，寧可讓人能修也不要鎖死。
+  function scheduleEntryIsPast(entry){
+    const d = scheduleParseDate(entry && entry.date);
+    return d ? d < scheduleToday() : false;
+  }
+
+  // 依日期由早到晚排序（日期相同就維持原本相對順序，Array.prototype.sort 在現代瀏覽器保證穩定）。
+  // 解析不出日期的列排到最後，才不會擠掉正常場次。
+  function sortScheduleEntries(entries){
+    return entries.slice().sort((a, b) => {
+      const da = scheduleParseDate(a.date), db = scheduleParseDate(b.date);
+      if(!da && !db) return 0;
+      if(!da) return 1;
+      if(!db) return -1;
+      return da - db;
+    });
+  }
+
+  // 任何來源（後端／localStorage／data.js 內嵌預設）的排程資料一律先過這支，統一成 {id,date,mode}[]。
+  // 舊格式（只有 order:[編號]）自動補上第一、三週二的日期並把 mode 設成實體，達成零手動遷移。
+  function normalizeScheduleEntries(raw){
+    let list = null;
+    if(raw && Array.isArray(raw.entries) && raw.entries.length > 0){
+      list = raw.entries.map(e => ({
+        id: String(e && e.id || "").trim(),
+        date: String(e && e.date || "").trim(),
+        mode: (e && e.mode === "online") ? "online" : SCHEDULE_DEFAULT_MODE
+      })).filter(e => e.id);
+    } else {
+      const order = (raw && Array.isArray(raw.order) && raw.order.length > 0)
+        ? raw.order
+        : (Array.isArray(raw) && raw.length > 0 ? raw : null);
+      if(!order) return null;
+      const dates = scheduleMeetingDates(order.length);
+      list = order.map((id, idx) => ({
+        id: String(id).trim(),
+        date: scheduleFmtDate(dates[idx]),
+        mode: SCHEDULE_DEFAULT_MODE
+      })).filter(e => e.id);
+    }
+    if(list.length === 0) return null;
+    // 日期缺漏或格式壞掉的列（人工改 Sheet 時可能發生）：沿用序位對應的預設日期補回，不讓它變成空白列。
+    const fallback = scheduleMeetingDates(list.length);
+    list.forEach((e, idx) => {
+      if(!scheduleParseDate(e.date)) e.date = scheduleFmtDate(fallback[idx]);
+    });
+    return sortScheduleEntries(list);
   }
 
   function loadScheduleState(){
@@ -4689,10 +4803,7 @@
     } catch(e){
       saved = null;
     }
-    if(saved && Array.isArray(saved.order) && saved.order.length > 0){
-      return saved.order;
-    }
-    return SCHEDULE_DEFAULT_ORDER.slice();
+    return normalizeScheduleEntries(saved) || normalizeScheduleEntries({ order: SCHEDULE_DEFAULT_ORDER });
   }
 
   function showSchedulePage(){
@@ -4703,7 +4814,7 @@
     document.getElementById("page-schedule").style.display = "";
     currentId = null;
     document.querySelectorAll(".roster-item").forEach(el => el.classList.remove("active"));
-    scheduleOrder = loadScheduleState();
+    scheduleEntries = loadScheduleState();
     renderScheduleList();
   }
 
@@ -4723,15 +4834,11 @@
 
   function renderScheduleList(){
     const wrap = document.getElementById("schedule-list");
-    if(!wrap || !scheduleOrder) return;
+    if(!wrap || !scheduleEntries) return;
 
-    const dates = scheduleMeetingDates(scheduleOrder.length);
-    const today = scheduleToday();
-    const lockedCount = dates.filter(d => d < today).length;
-
-    wrap.innerHTML = scheduleOrder.map((id, idx) => {
-      const date = dates[idx];
-      const isPast = date < today;
+    wrap.innerHTML = scheduleEntries.map((entry, idx) => {
+      const id = entry.id;
+      const isPast = scheduleEntryIsPast(entry);
       const rosterPartner = ROSTER.find(p => p.id === id);
       // 2026-08-14：這次編輯階段剛用「新增一位夥伴」加入、還沒按儲存的人——只在 scheduleDraftNewMembers 有暫存，
       // 不是正式 ROSTER 成員，不能給連結（?id= 頁面在 Sheet 上還不存在）。
@@ -4740,6 +4847,7 @@
       const departedName = !partner && DEPARTED_ROSTER[id] ? DEPARTED_ROSTER[id].name : "";
       const name = partner ? (partner.en ? `${partner.name} ${partner.en}` : partner.name) : (departedName || id);
       const statusKey = isPast ? "done" : "confirmed";
+      const modeKey = entry.mode === "online" ? "online" : "onsite";
       const nameCell = rosterPartner
         ? `<a class="schedule-name" href="?id=${id}" onclick="return navToPartner(event,'${id}')">${escapeHtml(name)}</a>`
         : `<span class="schedule-name">${escapeHtml(name)}${draftPartner ? "（新增，未儲存）" : ""}</span>`;
@@ -4750,10 +4858,17 @@
       } else if(isPast){
         controlsHtml = `<div class="schedule-row-lock">🔒 已發生過，不可調整</div>`;
       } else {
+        // 2026-09-07：日期直接改（活動提前／延後），出席方式兩顆按鈕切換。
+        // 上下移按鈕已移除——順序由日期決定，改日期就等於改順序，留著兩套會互相打架。
         controlsHtml = `
           <div class="schedule-row-controls">
-            <button type="button" class="schedule-move-btn" ${idx <= lockedCount ? "disabled" : ""} onclick="moveScheduleEntry(${idx},-1)" aria-label="上移">▲</button>
-            <button type="button" class="schedule-move-btn" ${idx >= scheduleOrder.length - 1 ? "disabled" : ""} onclick="moveScheduleEntry(${idx},1)" aria-label="下移">▼</button>
+            <span class="schedule-field-label">日期</span>
+            <input type="date" class="schedule-date-input" value="${escapeHtml(entry.date)}" aria-label="聚會日期" onchange="setScheduleEntryDate(${idx}, this.value)">
+            <span class="schedule-field-label">出席</span>
+            <div class="schedule-mode-toggle" role="group" aria-label="出席方式">
+              <button type="button" class="${modeKey === "onsite" ? "active" : ""}" onclick="setScheduleEntryMode(${idx},'onsite')">實體</button>
+              <button type="button" class="${modeKey === "online" ? "active" : ""}" onclick="setScheduleEntryMode(${idx},'online')">線上</button>
+            </div>
             <select class="schedule-swap-select" aria-label="換講者" onchange="swapScheduleEntry(${idx}, this.value)">
               ${buildScheduleSwapOptions(id)}
             </select>
@@ -4763,9 +4878,10 @@
 
       return `<div class="schedule-row${isPast ? " locked" : ""}">
         <div class="schedule-row-main">
-          <span class="schedule-date">${escapeHtml(scheduleFmtDate(date))}</span>
+          <span class="schedule-date">${escapeHtml(entry.date)}</span>
           <span class="schedule-id">${escapeHtml(id)}</span>
           ${nameCell}
+          <span class="schedule-mode ${modeKey}">${escapeHtml(SCHEDULE_MODE_LABEL[modeKey])}</span>
           <span class="schedule-status ${statusKey}">${escapeHtml(SCHEDULE_STATUS_LABEL[statusKey])}</span>
         </div>
         ${controlsHtml}
@@ -4795,7 +4911,7 @@
 
   // 「換講者」下拉選項：現役名單中尚未排入的人 ＋ 目前這格的人本身（讓 select 一定有合法初始值）
   function buildScheduleSwapOptions(currentId){
-    const used = new Set(scheduleOrder);
+    const used = new Set(scheduleEntries.map(e => e.id));
     const options = ROSTER
       .filter(p => p.id === currentId || !used.has(p.id))
       .map(p => `<option value="${p.id}" ${p.id === currentId ? "selected" : ""}>${escapeHtml(p.name)}${p.id === currentId ? "（目前）" : ""}</option>`)
@@ -4817,7 +4933,7 @@
       row.innerHTML = "";
       return;
     }
-    const used = new Set(scheduleOrder);
+    const used = new Set(scheduleEntries.map(e => e.id));
     const available = ROSTER.filter(p => !used.has(p.id));
     row.style.display = "";
     // 2026-08-14：「從現有名冊挑人」（沒人可挑時顯示提示文字）＋「新增一位不在名單上的夥伴」二選一，
@@ -4835,20 +4951,21 @@
   }
 
   // 進入編輯模式：拍一張目前順序的快照（供「取消」還原），草稿異動清單歸零。
-  // 編輯中的所有調整都直接改 scheduleOrder 本身（跟改動前寫法一致，差別只在不再逐次打後端）。
+  // 編輯中的所有調整都直接改 scheduleEntries 本身（跟改動前寫法一致，差別只在不再逐次打後端）。
   function startScheduleEdit(){
-    if(!scheduleOrder) return;
+    if(!scheduleEntries) return;
     isScheduleEditMode = true;
-    scheduleDraftSnapshot = scheduleOrder.slice();
+    // 深拷貝：entries 的元素是物件，只 slice() 會讓「取消」還原不了被就地改掉的 date／mode。
+    scheduleDraftSnapshot = scheduleEntries.map(e => Object.assign({}, e));
     scheduleDraftChanges = [];
     scheduleDraftNewMembers = [];
     renderScheduleList();
   }
 
-  // 捨棄草稿：scheduleOrder 還原成進入編輯模式那一刻的快照，不碰後端、不寫 localStorage；
+  // 捨棄草稿：scheduleEntries 還原成進入編輯模式那一刻的快照，不碰後端、不寫 localStorage；
   // scheduleDraftNewMembers 一併清空——這些人從沒真的寫進 Sheet，捨棄草稿就等於沒新增過。
   function discardScheduleDraft(){
-    if(scheduleDraftSnapshot) scheduleOrder = scheduleDraftSnapshot.slice();
+    if(scheduleDraftSnapshot) scheduleEntries = scheduleDraftSnapshot.map(e => Object.assign({}, e));
     scheduleDraftSnapshot = null;
     scheduleDraftChanges = [];
     scheduleDraftNewMembers = [];
@@ -4865,7 +4982,7 @@
   // 儲存：先寫名冊（若這次編輯階段有用「新增一位夥伴」暫存的新成員），成功才寫排程順序——
   // 名冊寫入失敗就不動排程，草稿與編輯模式都保留、按鈕可重試（見 persistScheduleNewMembers／persistScheduleState）。
   async function saveScheduleEdit(){
-    if(!isScheduleEditMode || !scheduleOrder) return;
+    if(!isScheduleEditMode || !scheduleEntries) return;
     if(scheduleDraftNewMembers.length > 0){
       const okNewMembers = await persistScheduleNewMembers();
       renderScheduleList(); // 不論成功與否都重繪一次：已成功建立的新成員要立刻改顯示成正式名單樣式（連結、非草稿標籤）
@@ -4891,62 +5008,137 @@
     return true;
   }
 
-  function moveScheduleEntry(idx, delta){
-    if(!isScheduleEditMode || !scheduleOrder) return;
-    const lockedCount = scheduleLockedCount();
-    const newIdx = idx + delta;
-    if(idx < lockedCount || newIdx < lockedCount || newIdx >= scheduleOrder.length) return;
-    const tmp = scheduleOrder[idx];
-    scheduleOrder[idx] = scheduleOrder[newIdx];
-    scheduleOrder[newIdx] = tmp;
-    scheduleDraftChanges.push({ path:"order", label:"調整排程順序", oldValue:"", newValue: scheduleOrder.join(",") });
+  // 2026-09-07：改某一場的日期。活動提前或延後就直接改這裡，清單改完立刻依日期重排
+  // （所以要記住這一列是誰，重排後把游標焦點還給同一列的日期欄，不然使用者連改兩場會找不到自己剛動的那格）。
+  // 已發生過的場次不給改；也擋掉日期改到今天以前（那等於偽造一場「已完成」，要補記錄請改 Sheet）。
+  function setScheduleEntryDate(idx, value){
+    if(!isScheduleEditMode || !scheduleEntries) return;
+    const entry = scheduleEntries[idx];
+    if(!entry || scheduleEntryIsPast(entry)){ renderScheduleList(); return; }
+    const nextDate = scheduleParseDate(value);
+    if(!nextDate){
+      alert("請選一個有效的日期");
+      renderScheduleList();
+      return;
+    }
+    if(nextDate < scheduleToday()){
+      alert("聚會日期不能改到今天以前");
+      renderScheduleList();
+      return;
+    }
+    const nextStr = scheduleFmtDate(nextDate);
+    if(nextStr === entry.date) return;
+    const oldStr = entry.date;
+    entry.date = nextStr;
+    scheduleDraftChanges.push({ path:"entries["+entry.id+"].date", label:"改聚會日期（"+scheduleEntryLabel(entry.id)+"）", oldValue:oldStr, newValue:nextStr });
+    scheduleEntries = sortScheduleEntries(scheduleEntries);
+    renderScheduleList();
+    scheduleFocusDateInput(entry.id);
+  }
+
+  // 2026-09-07：切換這一場是實體還是線上。
+  function setScheduleEntryMode(idx, mode){
+    if(!isScheduleEditMode || !scheduleEntries) return;
+    const entry = scheduleEntries[idx];
+    if(!entry || scheduleEntryIsPast(entry)) return;
+    const next = mode === "online" ? "online" : "onsite";
+    if(entry.mode === next) return;
+    const oldMode = entry.mode;
+    entry.mode = next;
+    scheduleDraftChanges.push({ path:"entries["+entry.id+"].mode", label:"改出席方式（"+scheduleEntryLabel(entry.id)+"）", oldValue:SCHEDULE_MODE_LABEL[oldMode] || oldMode, newValue:SCHEDULE_MODE_LABEL[next] });
     renderScheduleList();
   }
 
+  // 異動明細裡用得到的顯示名稱（Telegram 通知看的是這個字串，給編號不如給名字）
+  function scheduleEntryLabel(id){
+    const partner = ROSTER.find(p => p.id === id);
+    if(partner) return partner.name;
+    const draft = scheduleDraftNewMembers.find(m => m.id === id);
+    if(draft) return draft.name;
+    return (DEPARTED_ROSTER[id] && DEPARTED_ROSTER[id].name) || id;
+  }
+
+  // 重排後把焦點還給剛改的那一列（見 setScheduleEntryDate 註解）
+  function scheduleFocusDateInput(id){
+    const newIdx = scheduleEntries.findIndex(e => e.id === id);
+    if(newIdx < 0) return;
+    const rows = document.querySelectorAll("#schedule-list .schedule-row");
+    if(!rows[newIdx]) return;
+    const target = rows[newIdx].querySelector(".schedule-date-input");
+    if(target) target.focus();
+  }
+
   function removeScheduleEntry(idx){
-    if(!isScheduleEditMode || !scheduleOrder) return;
-    if(idx < scheduleLockedCount()) return;
-    const id = scheduleOrder[idx];
+    if(!isScheduleEditMode || !scheduleEntries) return;
+    const entry = scheduleEntries[idx];
+    if(!entry || scheduleEntryIsPast(entry)) return;
+    const id = entry.id;
     const partner = ROSTER.find(p => p.id === id);
     const draftPartner = !partner ? scheduleDraftNewMembers.find(m => m.id === id) : null;
     const label = partner ? partner.name : (draftPartner ? draftPartner.name : id);
     if(!window.confirm(`確定要移除「${label}」這一場嗎？`)) return;
-    scheduleOrder.splice(idx, 1);
+    scheduleEntries.splice(idx, 1);
     // 這位是這次編輯階段才用「新增一位夥伴」建的草稿、還沒存檔：連草稿一起撤銷，等於沒新增過。
     if(draftPartner) scheduleDraftNewMembers = scheduleDraftNewMembers.filter(m => m.id !== id);
-    scheduleDraftChanges.push({ path:"order", label:"移除場次", oldValue:label, newValue:"（已移除）" });
+    scheduleDraftChanges.push({ path:"entries", label:"移除場次", oldValue:label, newValue:"（已移除）" });
     renderScheduleList();
   }
 
   function swapScheduleEntry(idx, newId){
-    if(!isScheduleEditMode || !scheduleOrder) return;
-    if(idx < scheduleLockedCount()){ renderScheduleList(); return; }
-    const oldId = scheduleOrder[idx];
+    if(!isScheduleEditMode || !scheduleEntries) return;
+    const entry = scheduleEntries[idx];
+    if(!entry || scheduleEntryIsPast(entry)){ renderScheduleList(); return; }
+    const oldId = entry.id;
     if(!newId || newId === oldId) return;
-    if(scheduleOrder.includes(newId)){
+    if(scheduleEntries.some(e => e.id === newId)){
       alert("這位夥伴已經排在另一場，請先從那一場移除");
       renderScheduleList();
       return;
     }
-    scheduleOrder[idx] = newId;
+    entry.id = newId;
     const oldPartner = ROSTER.find(p => p.id === oldId);
     const newPartner = ROSTER.find(p => p.id === newId);
     const oldDraftPartner = !oldPartner ? scheduleDraftNewMembers.find(m => m.id === oldId) : null;
     // 換掉的那格若是這次編輯階段的新夥伴草稿，一併撤銷（使用者改選了別人，不該憑空留一筆待建的名冊）。
     if(oldDraftPartner) scheduleDraftNewMembers = scheduleDraftNewMembers.filter(m => m.id !== oldId);
-    scheduleDraftChanges.push({ path:"order["+idx+"]", label:"換講者", oldValue: oldPartner ? oldPartner.name : (oldDraftPartner ? oldDraftPartner.name : oldId), newValue: newPartner ? newPartner.name : newId });
+    scheduleDraftChanges.push({ path:"entries["+idx+"].id", label:"換講者", oldValue: oldPartner ? oldPartner.name : (oldDraftPartner ? oldDraftPartner.name : oldId), newValue: newPartner ? newPartner.name : newId });
     renderScheduleList();
   }
 
   function addScheduleEntry(){
     const select = document.getElementById("schedule-add-select");
-    if(!select || !select.value || !scheduleOrder) return;
+    if(!select || !select.value || !scheduleEntries) return;
     const id = select.value;
-    if(scheduleOrder.includes(id)) return; // 防禦，select 選項理論上已排除已在佇列的人
-    scheduleOrder.push(id);
+    if(scheduleEntries.some(e => e.id === id)) return; // 防禦，select 選項理論上已排除已在佇列的人
+    appendScheduleEntry(id);
     const partner = ROSTER.find(p => p.id === id);
-    scheduleDraftChanges.push({ path:"order", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id });
+    scheduleDraftChanges.push({ path:"entries", label:"新增場次", oldValue:"", newValue: partner ? partner.name : id });
     renderScheduleList();
+  }
+
+  // 2026-09-07：新增一場時的預設日期＝最後一場的下一個聚會日（每月第一、三個禮拜二），
+  // 組長可再自行改。清單沒有任何未來場次時，從今天之後的第一個第一／三週二起算。
+  function scheduleNextMeetingDateAfter(afterDate){
+    let y = afterDate.getFullYear(), m = afterDate.getMonth();
+    for(let i = 0; i < 24; i++){
+      const candidates = scheduleFirstAndThirdTuesdays(y, m);
+      for(const d of candidates){
+        if(d > afterDate) return d;
+      }
+      m++;
+      if(m > 11){ m = 0; y++; }
+    }
+    const fallback = new Date(afterDate);
+    fallback.setDate(fallback.getDate() + 14);
+    return fallback;
+  }
+
+  function appendScheduleEntry(id){
+    const dates = scheduleEntries.map(e => scheduleParseDate(e.date)).filter(Boolean);
+    const last = dates.length > 0 ? dates[dates.length - 1] : null;
+    const base = (last && last > scheduleToday()) ? last : scheduleToday();
+    scheduleEntries.push({ id, date: scheduleFmtDate(scheduleNextMeetingDateAfter(base)), mode: SCHEDULE_DEFAULT_MODE });
+    scheduleEntries = sortScheduleEntries(scheduleEntries);
   }
 
   // ============= 2026-08-14：「新增一位夥伴」──名冊上還沒有的新組員 =============
@@ -5017,8 +5209,8 @@
     }
 
     scheduleDraftNewMembers.push({ id, name, en:"", role, area:"" });
-    scheduleOrder.push(id);
-    scheduleDraftChanges.push({ path:"order", label:"新增夥伴＋排入場次", oldValue:"", newValue: name + "（" + id + "）" });
+    appendScheduleEntry(id);
+    scheduleDraftChanges.push({ path:"entries", label:"新增夥伴＋排入場次", oldValue:"", newValue: name + "（" + id + "）" });
     closeScheduleNewMemberModal();
     renderScheduleList();
   }
@@ -5069,10 +5261,15 @@
   }
 
   // 存檔核心：doPost 成功才算數，跟 persistState／persistTeamState 同一套模式。
-  // schedule 資料整份 { order:[...] } 存取，id 固定 "schedule"。只有 saveScheduleEdit() 會呼叫這支。
+  // schedule 資料整份 { entries:[...], order:[...] } 存取，id 固定 "schedule"。只有 saveScheduleEdit() 會呼叫這支。
+  // 2026-09-07：entries 是新真相源；order 仍一併寫出，讓還沒重新整理、跑舊版程式碼的分頁不會讀到空排程。
+  function scheduleStatePayload(){
+    return { entries: scheduleEntries, order: scheduleEntries.map(e => e.id) };
+  }
+
   async function persistScheduleState(changes){
     if(!BACKEND_ENABLED){
-      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify({ order: scheduleOrder }));
+      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(scheduleStatePayload()));
       return true;
     }
 
@@ -5082,9 +5279,9 @@
         id: "schedule",
         name: "15 分鐘專講排程表",
         changes: changes || [],
-        data: { order: scheduleOrder }
+        data: scheduleStatePayload()
       });
-      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify({ order: scheduleOrder }));
+      localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(scheduleStatePayload()));
       showToast("已存檔", false);
       return true;
     } catch(err){
@@ -5107,19 +5304,21 @@
       // 2026-08-14：這支已經打過一次全員快照，順便同步 ROSTER（「新增一位夥伴」存的新成員可能還沒進本機名單）。
       if(syncPeopleAndRosterFromSnapshot(all)) renderRoster();
       const row = all["schedule"];
-      if(row && Array.isArray(row.order) && row.order.length > 0){
+      const normalized = normalizeScheduleEntries(row);
+      if(normalized){
         if(!isScheduleEditMode){
-          scheduleOrder = row.order;
+          scheduleEntries = normalized;
           if(document.getElementById("page-schedule").style.display !== "none"){
             renderScheduleList();
           }
         }
       } else {
+        scheduleEntries = normalizeScheduleEntries({ order: SCHEDULE_DEFAULT_ORDER });
         await postToBackend({
           id: "schedule",
           name: "15 分鐘專講排程表",
-          changes: [{ path:"order", label:"排程表初始化", oldValue:"", newValue:"自動建立初始資料" }],
-          data: { order: SCHEDULE_DEFAULT_ORDER }
+          changes: [{ path:"entries", label:"排程表初始化", oldValue:"", newValue:"自動建立初始資料" }],
+          data: scheduleStatePayload()
         });
         console.info("[hydrateScheduleFromBackend] Sheet 尚無 id=schedule 列，已用內嵌預設資料自動建立");
       }
