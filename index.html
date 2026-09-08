@@ -1966,11 +1966,6 @@
     color:var(--white);
   }
 
-  .schedule-row-lock{
-    font-size:12px;
-    color:var(--ink-soft);
-  }
-
   /* 2026-09-07：日期可編輯＋實體／線上。日期不再由「排第幾個」算出來，改成每一場自己存一個日期，
      組長可直接改（活動提前或延後）；出席方式兩選一，見 renderScheduleList／setScheduleEntryDate／setScheduleEntryMode。 */
   .schedule-mode{
@@ -2747,7 +2742,7 @@
     </div>
 
     <div class="about-warning-banner">
-      日期預設為每月第一、三個禮拜二；活動若提前或延後，組長按「編輯這頁」可直接改日期，並標註實體或線上。清單一律依日期由早到晚排列。
+      日期預設為每月第一、三個禮拜二；活動若提前或延後，組長按「編輯這頁」可直接改日期，並標註實體或線上。已經辦過的場次一樣可以改，用來補記當時實際的日期與出席方式。清單一律依日期由早到晚排列。
     </div>
 
     <div class="schedule-list" id="schedule-list"></div>
@@ -4679,7 +4674,10 @@
   // 相容：後端／localStorage 若只有舊的 order 陣列，載入時自動用原本的第一、三週二算法補日期、mode 預設實體
   //       （見 normalizeScheduleEntries），不需要手動搬資料；第一次按儲存就會以新格式寫回 Sheet。
   //       寫回時仍同時寫一份 order 陣列，讓任何還沒更新的舊分頁不至於讀到空白。
-  // 狀態：日期早於今天＝已完成、今天或未來＝已排定；已完成場次在編輯模式鎖住不能調整。
+  // 狀態：日期早於今天＝已完成、今天或未來＝已排定。
+  // 2026-09-08：已完成場次解鎖。原本鎖住是舊模型的限制（日期由序位算出來，改過去等於動到整串順序）；
+  //   現在日期是每場自己存的，補記「那場其實是線上」或「其實提前到某天辦」都是正當需求，因此所有場次
+  //   一律可編輯，日期也可以填過去的日子。「已完成／已排定」只剩顯示用途，不再擋操作。
   // 存檔走 GAS doPost，id="schedule"，data:{entries:[...],order:[...]}——與 id="team" 同一套 schema-agnostic
   // 後端，不需要額外部署／改 Code.gs。
   const SCHEDULE_STATUS_LABEL = { done:"已完成", confirmed:"已排定" };
@@ -4746,7 +4744,8 @@
     return t;
   }
 
-  // 某一場是否已經發生過（＝這一列在編輯模式要鎖住）。日期解析不出來時當作未來場次，寧可讓人能修也不要鎖死。
+  // 某一場是否已經發生過——2026-09-08 起只用來決定顯示「已完成」還是「已排定」，不再拿來鎖編輯。
+  // 日期解析不出來時當作未來場次。
   function scheduleEntryIsPast(entry){
     const d = scheduleParseDate(entry && entry.date);
     return d ? d < scheduleToday() : false;
@@ -4854,8 +4853,6 @@
       let controlsHtml;
       if(!isScheduleEditMode){
         controlsHtml = "";
-      } else if(isPast){
-        controlsHtml = `<div class="schedule-row-lock">🔒 已發生過，不可調整</div>`;
       } else {
         // 2026-09-07：日期直接改（活動提前／延後），出席方式兩顆按鈕切換。
         // 上下移按鈕已移除——順序由日期決定，改日期就等於改順序，留著兩套會互相打架。
@@ -5009,19 +5006,15 @@
 
   // 2026-09-07：改某一場的日期。活動提前或延後就直接改這裡，清單改完立刻依日期重排
   // （所以要記住這一列是誰，重排後把游標焦點還給同一列的日期欄，不然使用者連改兩場會找不到自己剛動的那格）。
-  // 已發生過的場次不給改；也擋掉日期改到今天以前（那等於偽造一場「已完成」，要補記錄請改 Sheet）。
+  // 2026-09-08：過去場次同樣可改（補記實際辦理日期），因此不再擋 isPast，也不再擋過去的日期；
+  // 只擋真正無效的輸入（清空、亂填）。日期一改就重新依日期排序，見下方 sortScheduleEntries。
   function setScheduleEntryDate(idx, value){
     if(!isScheduleEditMode || !scheduleEntries) return;
     const entry = scheduleEntries[idx];
-    if(!entry || scheduleEntryIsPast(entry)){ renderScheduleList(); return; }
+    if(!entry){ renderScheduleList(); return; }
     const nextDate = scheduleParseDate(value);
     if(!nextDate){
       alert("請選一個有效的日期");
-      renderScheduleList();
-      return;
-    }
-    if(nextDate < scheduleToday()){
-      alert("聚會日期不能改到今天以前");
       renderScheduleList();
       return;
     }
@@ -5035,11 +5028,11 @@
     scheduleFocusDateInput(entry.id);
   }
 
-  // 2026-09-07：切換這一場是實體還是線上。
+  // 2026-09-07：切換這一場是實體還是線上。2026-09-08 起過去場次也可改（補記當時實際的出席方式）。
   function setScheduleEntryMode(idx, mode){
     if(!isScheduleEditMode || !scheduleEntries) return;
     const entry = scheduleEntries[idx];
-    if(!entry || scheduleEntryIsPast(entry)) return;
+    if(!entry) return;
     const next = mode === "online" ? "online" : "onsite";
     if(entry.mode === next) return;
     const oldMode = entry.mode;
@@ -5070,7 +5063,7 @@
   function removeScheduleEntry(idx){
     if(!isScheduleEditMode || !scheduleEntries) return;
     const entry = scheduleEntries[idx];
-    if(!entry || scheduleEntryIsPast(entry)) return;
+    if(!entry) return;
     const id = entry.id;
     const partner = ROSTER.find(p => p.id === id);
     const draftPartner = !partner ? scheduleDraftNewMembers.find(m => m.id === id) : null;
@@ -5086,7 +5079,7 @@
   function swapScheduleEntry(idx, newId){
     if(!isScheduleEditMode || !scheduleEntries) return;
     const entry = scheduleEntries[idx];
-    if(!entry || scheduleEntryIsPast(entry)){ renderScheduleList(); return; }
+    if(!entry){ renderScheduleList(); return; }
     const oldId = entry.id;
     if(!newId || newId === oldId) return;
     if(scheduleEntries.some(e => e.id === newId)){
