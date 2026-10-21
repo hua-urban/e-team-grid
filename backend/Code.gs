@@ -95,10 +95,17 @@ function setup() {
   if (s1 && ss.getSheets().length > 1) ss.deleteSheet(s1);
 
   // 加秘書帳號為編輯者（不影響「誰可以存取 web app」設定，那是部署層另外的鐵律）
-  try {
-    ss.addEditor('qiongan0208@gmail.com');
-  } catch (e) {
-    Logger.log('[setup] addEditor 失敗（可能已是編輯者，忽略）：' + e.message);
+  // ★ 2026-10-21：信箱改從 Script Properties「EDITOR_EMAIL」讀，不寫在程式碼裡（本 repo 公開）。
+  //   沒設這個屬性就略過，不影響建表。
+  var editorEmail = PropertiesService.getScriptProperties().getProperty('EDITOR_EMAIL');
+  if (editorEmail) {
+    try {
+      ss.addEditor(editorEmail);
+    } catch (e) {
+      Logger.log('[setup] addEditor 失敗（可能已是編輯者，忽略）：' + e.message);
+    }
+  } else {
+    Logger.log('[setup] 未設定 EDITOR_EMAIL 指令碼屬性，略過加編輯者');
   }
 
   Logger.log('[setup] 完成！Sheet URL：' + ss.getUrl());

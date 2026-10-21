@@ -25,7 +25,9 @@
 3. 新增兩筆：
    - 屬性：`TG_TOKEN`　值：見 vault `[[敏感憑證總表]]` § Telegram OPS bot（`wuohome_ops_bot` 那一列的 token）
    - 屬性：`TG_CHAT_ID`　值：`8163308207`（Joan 的 Telegram chat id，已在系統其他 bot 沿用）
-4. 儲存
+4. （選填）再新增一筆 `EDITOR_EMAIL`：值填要被加為試算表編輯者的信箱。`setup()` 會讀它；沒設就略過。
+   信箱不寫在 `Code.gs` 裡，因為這個 repo 是公開的。
+5. 儲存
 
 > 沒設這兩個屬性也不會壞——`notifyTelegram()` 會偵測到空值直接跳過通知，資料照樣正常寫入，
 > 只是妳收不到 Telegram 訊息。之後想開通知，回來補這兩筆屬性即可，不用重新部署。

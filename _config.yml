@@ -1,0 +1,5 @@
+# GitHub Pages（legacy Jekyll 建置）設定
+# backend/ 是 Apps Script 後端原始碼與部署筆記，不屬於網站，排除在發布範圍外（2026-10-21）。
+exclude:
+  - backend/
+  - README.md
