@@ -21,6 +21,7 @@
 var SHEET_NAME = 'E組資料';
 var HEADERS = ['id', 'name', 'updated_at', 'last_editor', 'data_json'];
 var ID_COL_INDEX = HEADERS.indexOf('id'); // 0-based，供整欄鎖格式用
+var MAX_REQUEST_BYTES = 64 * 1024;
 
 // ====== 共用：id 正規化 ======
 
@@ -39,6 +40,64 @@ function normalizeId(x) {
     return s.length >= 3 ? s : ('000' + s).slice(-3);
   }
   return s; // 非純數字格式的 id，不勉強補零
+}
+
+/** 對公開寫入端限制 JSON 巢狀度、節點、陣列、欄位名與字串大小。 */
+function isBoundedJsonValue(value, state, depth) {
+  state.nodes++;
+  if (state.nodes > 5000 || depth > 16) return false;
+  if (value === null) return false;
+  if (typeof value === 'boolean') return true;
+  if (typeof value === 'string') return value.length <= 4096;
+  if (typeof value === 'number') return isFinite(value);
+  if (Array.isArray(value)) {
+    if (value.length > 256) return false;
+    for (var i = 0; i < value.length; i++) {
+      if (!isBoundedJsonValue(value[i], state, depth + 1)) return false;
+    }
+    return true;
+  }
+  if (typeof value !== 'object') return false;
+  var keys = Object.keys(value);
+  if (keys.length > 128) return false;
+  for (var j = 0; j < keys.length; j++) {
+    var key = keys[j];
+    if (key.length > 128 || key === '__proto__' || key === 'prototype' || key === 'constructor') return false;
+    if (!isBoundedJsonValue(value[key], state, depth + 1)) return false;
+  }
+  return true;
+}
+
+function isPlainJsonObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidPostPayload(payload) {
+  if (!isPlainJsonObject(payload)) return false;
+  if (!(typeof payload.id === 'string' || (typeof payload.id === 'number' && isFinite(payload.id)))) return false;
+  var id = normalizeId(payload.id);
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(id)) return false;
+  if (!isPlainJsonObject(payload.data)) return false;
+  if (payload.name !== undefined && (typeof payload.name !== 'string' || payload.name.length > 256)) return false;
+  if (payload.changes !== undefined) {
+    if (!Array.isArray(payload.changes) || payload.changes.length > 128) return false;
+    for (var i = 0; i < payload.changes.length; i++) {
+      var change = payload.changes[i];
+      if (!isPlainJsonObject(change)) return false;
+      if (change.path !== undefined && (typeof change.path !== 'string' || change.path.length > 256)) return false;
+      if (change.label !== undefined && (typeof change.label !== 'string' || change.label.length > 256)) return false;
+    }
+  }
+  if (payload.data.self !== undefined) {
+    if (!isPlainJsonObject(payload.data.self)) return false;
+    var selfFields = ['name', 'en', 'role', 'area'];
+    for (var j = 0; j < selfFields.length; j++) {
+      var field = selfFields[j];
+      if (payload.data.self[field] !== undefined &&
+          (typeof payload.data.self[field] !== 'string' || payload.data.self[field].length > 256)) return false;
+    }
+  }
+  return isBoundedJsonValue(payload, { nodes: 0 }, 0);
 }
 
 // ====== 一鍵初始化 ======
@@ -218,15 +277,27 @@ function formatCellDate(v) {
  * 失敗（payload 格式錯 / 多人同時存檔取不到鎖）：回 { ok:false, error }
  */
 function doPost(e) {
+  var raw = e && e.postData && e.postData.contents;
+  if (typeof raw !== 'string') {
+    return jsonOutput({ ok: false, error: 'payload 必須是 JSON 文字' });
+  }
+  if (raw.length > MAX_REQUEST_BYTES || Utilities.newBlob(raw).getBytes().length > MAX_REQUEST_BYTES) {
+    return jsonOutput({ ok: false, error: 'payload 超過 64 KB 限制' });
+  }
+
   var payload;
   try {
-    payload = JSON.parse(e.postData.contents);
+    payload = JSON.parse(raw);
   } catch (err) {
-    return jsonOutput({ ok: false, error: 'payload 不是合法 JSON：' + err.message });
+    return jsonOutput({ ok: false, error: 'payload 不是合法 JSON' });
+  }
+
+  if (!isValidPostPayload(payload)) {
+    return jsonOutput({ ok: false, error: 'payload 欄位或資料大小不正確' });
   }
 
   var id = normalizeId(payload.id);
-  var changes = Array.isArray(payload.changes) ? payload.changes : [];
+  var changes = payload.changes || [];
   var data = payload.data;
 
   if (!id) return jsonOutput({ ok: false, error: '缺少 id' });
