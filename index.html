@@ -3369,7 +3369,24 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function profileLinkAttributes(id){
+    const value = String(id == null ? "" : id);
+    if(!/^[A-Za-z0-9_-]{1,32}$/.test(value)) return 'href="#" aria-disabled="true"';
+    return `href="?id=${encodeURIComponent(value)}" data-profile-id="${escapeHtml(value)}"`;
+  }
+
+  function bindProfileLinks(container){
+    if(!container) return;
+    container.querySelectorAll("a[data-profile-id]").forEach(link => {
+      link.addEventListener("click", event => {
+        event.stopPropagation();
+        navToPartner(event, link.dataset.profileId);
+      });
+    });
   }
 
   // rank: 1~8 順時鐘角標（右上圓角標）；titleAttr: hover 全文
@@ -3408,7 +3425,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
           const cell = document.createElement("div");
           if(i===4){
             cell.className = "micro-cell self";
-            cell.innerHTML = `<span class="self-name">${state.self.name}</span><span class="self-sub">${state.self.role}</span><span class="self-sub">${state.self.area}</span>`;
+            cell.innerHTML = `<span class="self-name">${escapeHtml(state.self.name)}</span><span class="self-sub">${escapeHtml(state.self.role)}</span><span class="self-sub">${escapeHtml(state.self.area)}</span>`;
             cell.addEventListener("click", () => onSelfCellClick());
           } else {
             const theme = state.themes[themeSlot];
@@ -3484,7 +3501,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       const cell = document.createElement("div");
       if(i===4){
         cell.className = "mobile-cell self";
-        cell.innerHTML = `<span class="self-name">${state.self.name}</span><span class="self-sub">${state.self.role}</span><span class="self-sub">${state.self.area}</span>`;
+        cell.innerHTML = `<span class="self-name">${escapeHtml(state.self.name)}</span><span class="self-sub">${escapeHtml(state.self.role)}</span><span class="self-sub">${escapeHtml(state.self.area)}</span>`;
         cell.addEventListener("click", () => onSelfCellClick());
       } else {
         const theme = state.themes[themeSlot];
@@ -3863,12 +3880,29 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
   function renderOriginalPhoto(id, data){
     const frame = document.getElementById("original-photo-frame");
     const note = document.getElementById("original-photo-note");
-    if(data.photo){
-      frame.innerHTML = '<img id="original-photo" src="' + data.photo + '" alt="' + id + ' ' + data.self.name + ' 手寫九宮格原圖" onclick="openLightbox()">';
+    let photoUrl = null;
+    try{
+      if(data.photo) photoUrl = new URL(String(data.photo), window.location.href);
+    } catch(err){
+      photoUrl = null;
+    }
+    if(photoUrl && (photoUrl.protocol === "https:" || photoUrl.protocol === "http:")){
+      const image = document.createElement("img");
+      image.id = "original-photo";
+      image.src = photoUrl.href;
+      image.alt = `${id} ${data.self.name} 手寫九宮格原圖`;
+      image.addEventListener("click", openLightbox);
+      frame.replaceChildren(image);
       note.textContent = "點圖放大";
     } else {
-      frame.innerHTML = '<img id="original-photo" src="" alt="" style="display:none;">';
-      frame.insertAdjacentHTML("beforeend", '<p class="original-photo-placeholder">尚未提供手寫版</p>');
+      const image = document.createElement("img");
+      image.id = "original-photo";
+      image.alt = "";
+      image.style.display = "none";
+      const placeholder = document.createElement("p");
+      placeholder.className = "original-photo-placeholder";
+      placeholder.textContent = "尚未提供手寫版";
+      frame.replaceChildren(image, placeholder);
       note.textContent = "";
     }
   }
@@ -4116,7 +4150,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     const countNote = row.reasons.length >= 2 ? `；共 ${row.reasons.length} 項` : "";
     const mutualTag = row.mutual ? `<span class="linkage-mutual-tag" title="雙向連動">⇄</span>` : ""; // 2026-07-22：改小圖示，不再用大 pill（§ 13.7）
     return `<div class="linkage-row${row.mutual ? " linkage-row-mutual" : ""}">${mutualTag}`
-      + `→ <a href="?id=${row.id}" onclick="return navToPartner(event,'${row.id}')">${escapeHtml(row.name)}</a>`
+      + `→ <a ${profileLinkAttributes(row.id)}>${escapeHtml(row.name)}</a>`
       + `（${reasonsHtml}${countNote}）</div>`;
   }
 
@@ -4149,7 +4183,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     card.dataset.personId = id; // renderLinkageCards() 重繪時靠這個記住使用者手動展開過哪些卡
     card.innerHTML = `<summary class="linkage-card-head">`
       + `<span class="linkage-caret">▸</span>`
-      + `<a href="?id=${id}" class="linkage-card-name" onclick="return navToPartner(event,'${id}')">${escapeHtml(id)}　${escapeHtml(name)}</a>`
+      + `<a ${profileLinkAttributes(id)} class="linkage-card-name">${escapeHtml(id)}　${escapeHtml(name)}</a>`
       + (role ? `<span class="linkage-card-role">${escapeHtml(role)}</span>` : "")
       + `<span class="linkage-card-meta">${escapeHtml(metaText)}</span>`
       + `</summary><div class="linkage-card-body">${bodyHtml}</div>`;
@@ -4171,6 +4205,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       if(openIds.has(id)) card.setAttribute("open", "");
       grid.appendChild(card);
     });
+    bindProfileLinks(grid);
   }
 
   function renderPersonalLinkageBlock(id){
@@ -4186,6 +4221,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     blockEl.style.display = "";
     blockEl.innerHTML = "";
     blockEl.appendChild(buildLinkageCard(id, false));
+    bindProfileLinks(blockEl);
   }
 
   // 協作對接表（示意）：五類客戶取自簡報 P14 九宮格草稿，第三欄用連動引擎結果＋P14 推一版合理示意，
@@ -4213,11 +4249,12 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
         const [id, tag] = o;
         const built = isBuilt(id);
         const name = built ? PEOPLE_DATA[id].self.name : (ROSTER.find(p => p.id === id) || {}).name || id;
-        return `<a href="?id=${id}" onclick="return navToPartner(event,'${id}')">${escapeHtml(name)}</a>（${escapeHtml(tag)}）`;
+        return `<a ${profileLinkAttributes(id)}>${escapeHtml(name)}</a>（${escapeHtml(tag)}）`;
       }).join("、");
       tr.innerHTML = `<td>${escapeHtml(row.need)}</td><td>${escapeHtml(row.detail)}</td><td>${ownersHtml}</td>`;
       tbody.appendChild(tr);
     });
+    bindProfileLinks(tbody);
   }
 
   // 2026-07-22：原「最常被需要 Top 3」排行榜（金框＋①②③名次＋N人會找/M條連動）拿掉排名呈現，
@@ -4236,10 +4273,11 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     if(common.length === 0){ el.innerHTML = ""; return; }
     const namesHtml = common.map(r => {
       const role = (PEOPLE_DATA[r.id].self.role || "").trim();
-      return `<a href="?id=${r.id}" onclick="return navToPartner(event,'${r.id}')">${escapeHtml(r.name)}</a>`
+      return `<a ${profileLinkAttributes(r.id)}>${escapeHtml(r.name)}</a>`
         + (role ? `（${escapeHtml(role)}）` : "");
     }).join("、");
     el.innerHTML = `<b>跨多類需求的共通服務窗口：</b>${namesHtml}——這幾位夥伴的服務橫跨多個客戶類型，各類型需求都可能找得到他們。`;
+    bindProfileLinks(el);
   }
 
   // ============================================================
@@ -4519,13 +4557,13 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       const nameLabel = p.en ? `${p.name} ${p.en}` : p.name;
       const leaderMark = p.leader ? "　★" : "";
       const dualTeamTag = p.dualTeam
-        ? `<span class="roster-dualteam-tag" title="${p.dualTeam}">${dualTeamShortLabel(p.dualTeam)}</span>`
+        ? `<span class="roster-dualteam-tag" title="${escapeHtml(p.dualTeam)}">${escapeHtml(dualTeamShortLabel(p.dualTeam))}</span>`
         : "";
 
       btn.innerHTML = `
-        <span class="roster-id">${p.id}</span>
-        <span class="roster-name">${nameLabel}${leaderMark}</span>${dualTeamTag}
-        <span class="roster-role">${p.role}</span>
+        <span class="roster-id">${escapeHtml(p.id)}</span>
+        <span class="roster-name">${escapeHtml(nameLabel)}${leaderMark}</span>${dualTeamTag}
+        <span class="roster-role">${escapeHtml(p.role)}</span>
         ${!built ? '<span class="roster-unbuilt-tag">未提供</span>' : ""}
       `;
       li.appendChild(btn);
@@ -4544,10 +4582,10 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     const roster = ROSTER.find(p => p.id === id);
 
     document.getElementById("active-id").textContent = id;
-    document.getElementById("active-name").innerHTML = data.self.name + (data.self.en ? ` <span class="en" id="active-en">${data.self.en}</span>` : ' <span class="en" id="active-en"></span>');
+    document.getElementById("active-name").innerHTML = escapeHtml(data.self.name) + (data.self.en ? ` <span class="en" id="active-en">${escapeHtml(data.self.en)}</span>` : ' <span class="en" id="active-en"></span>');
     const metaParts = [data.self.role];
     if(data.self.area) metaParts.push(data.self.area);
-    document.getElementById("active-meta").innerHTML = metaParts.join('<span class="sep">｜</span>');
+    document.getElementById("active-meta").innerHTML = metaParts.map(escapeHtml).join('<span class="sep">｜</span>');
     document.getElementById("active-leader-badge").style.display = (data.leader || (roster && roster.leader)) ? "" : "none";
 
     const dualTeamBadge = document.getElementById("active-dualteam-badge");
@@ -4861,7 +4899,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       const statusKey = isPast ? "done" : "confirmed";
       const modeKey = entry.mode === "online" ? "online" : "onsite";
       const nameCell = rosterPartner
-        ? `<a class="schedule-name" href="?id=${id}" onclick="return navToPartner(event,'${id}')">${escapeHtml(name)}</a>`
+        ? `<a class="schedule-name" ${profileLinkAttributes(id)}>${escapeHtml(name)}</a>`
         : `<span class="schedule-name">${escapeHtml(name)}${draftPartner ? "（新增，未儲存）" : ""}</span>`;
 
       let controlsHtml;
@@ -4898,6 +4936,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
       </div>`;
     }).join("");
 
+    bindProfileLinks(wrap);
     renderScheduleAddRow();
     renderScheduleEditControls();
   }
@@ -4924,7 +4963,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     const used = new Set(scheduleEntries.map(e => e.id));
     const options = ROSTER
       .filter(p => p.id === currentId || !used.has(p.id))
-      .map(p => `<option value="${p.id}" ${p.id === currentId ? "selected" : ""}>${escapeHtml(p.name)}${p.id === currentId ? "（目前）" : ""}</option>`)
+      .map(p => `<option value="${escapeHtml(p.id)}" ${p.id === currentId ? "selected" : ""}>${escapeHtml(p.name)}${p.id === currentId ? "（目前）" : ""}</option>`)
       .join("");
     if(ROSTER.some(p => p.id === currentId)) return options;
     // 這格若不在 ROSTER 內仍讓 select 有合法初始值：可能是這次編輯階段暫存的新夥伴草稿，或防禦性的已退出名單。
@@ -4932,7 +4971,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     const label = draftPartner
       ? draftPartner.name + "（新增，未儲存）"
       : ((DEPARTED_ROSTER[currentId] && DEPARTED_ROSTER[currentId].name) || currentId) + "（目前，已不在名單）";
-    return `<option value="${currentId}" selected>${escapeHtml(label)}</option>` + options;
+    return `<option value="${escapeHtml(currentId)}" selected>${escapeHtml(label)}</option>` + options;
   }
 
   function renderScheduleAddRow(){
@@ -4950,7 +4989,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
     // 後者不受名冊是否挑完影響，任何時候都能開（見 openScheduleNewMemberModal）。
     const existingPickerHtml = available.length > 0
       ? `<select id="schedule-add-select" class="schedule-swap-select" aria-label="新增講者">
-          ${available.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}
+          ${available.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("")}
         </select>
         <button type="button" class="edit-modal-btn primary" onclick="addScheduleEntry()">+ 新增一場</button>`
       : `<p class="schedule-add-empty">15 位夥伴都已排入場次</p>`;
@@ -5364,20 +5403,21 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
         }
       } else {
         const c = teamState.cells[posRef];
-        const tagLabel = c.category === "learning" ? "學習型" : "營銷型";
+        const category = c.category === "learning" || c.category === "marketing" ? c.category : "learning";
+        const tagLabel = category === "learning" ? "學習型" : "營銷型";
         const statusHtml = c.status === "empty" ? `<span class="team-cell-status empty">空席</span>` : "";
         const membersHtml = (c.members || []).map(m => {
           if(m.type === "roster"){
             const p = ROSTER.find(r => r.id === m.id);
             const label = p ? p.name : m.id;
-            return `<span class="team-member-chip roster"><a href="?id=${m.id}" onclick="event.stopPropagation(); return navToPartner(event,'${m.id}');">${escapeHtml(label)}</a></span>`;
+            return `<span class="team-member-chip roster"><a ${profileLinkAttributes(m.id)}>${escapeHtml(label)}</a></span>`;
           }
           return `<span class="team-member-chip">${escapeHtml(m.text || "")}</span>`;
         }).join("");
 
-        cell.className = "team-cell " + c.category + (c.status === "empty" ? " empty" : "");
+        cell.className = "team-cell " + category + (c.status === "empty" ? " empty" : "");
         cell.innerHTML = `
-          <span class="team-cell-tag ${c.category}">${tagLabel}</span>
+          <span class="team-cell-tag ${category}">${tagLabel}</span>
           <div class="team-cell-name">${escapeHtml(c.name)}</div>
           ${statusHtml}
           ${c.desc ? `<div class="team-cell-desc">${escapeHtml(c.desc)}</div>` : ""}
@@ -5390,6 +5430,7 @@ body.projection-mode .hua-home-navigation { padding-left: 70px; }
 
       grid.appendChild(cell);
     });
+    bindProfileLinks(grid);
   }
 
   function toggleTeamEditMode(on){
